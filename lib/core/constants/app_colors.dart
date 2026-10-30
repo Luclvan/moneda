@@ -14,6 +14,9 @@ class AppColors {
   /// Màu thanh tiến trình hũ Want (#60A5FA)
   static const Color lightBlue = Color(0xFF60A5FA);
 
+  /// Màu xanh nhạt mờ trạng thái Disabled (#93C5FD)
+  static const Color disabledBlue = Color(0xFF93C5FD);
+
   // Background & Borders
   /// Màu nền trang (#F8FAFC)
   static const Color backgroundGray = Color(0xFFF8FAFC);

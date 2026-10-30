@@ -10,6 +10,8 @@ import '../widgets/moneda_bottom_bar.dart';
 import '../widgets/quick_actions_grid.dart';
 import '../widgets/recent_transactions_card.dart';
 import '../widgets/rollover_alert_banner.dart';
+import 'payment_screen.dart';
+import 'receive_money_screen.dart';
 
 /// Màn hình Trang chủ (Home Dashboard) chuẩn phong cách MB Bank
 class HomeScreen extends StatefulWidget {
@@ -95,8 +97,31 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onPlaceholderAction(String title) {
-    // Placeholder cho các chức năng ở bước tiếp theo
     debugPrint('Tapped action: $title');
+  }
+
+  Future<void> _navigateToReceiveMoney() async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ReceiveMoneyScreen(),
+      ),
+    );
+    if (result == true || mounted) {
+      _loadDashboardData();
+    }
+  }
+
+  Future<void> _navigateToPayment() async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const PaymentScreen(),
+      ),
+    );
+    if (result == true || mounted) {
+      _loadDashboardData();
+    }
   }
 
   @override
@@ -165,8 +190,8 @@ class _HomeScreenState extends State<HomeScreen> {
             _bottomNavIndex = index;
           });
         },
-        onPaymentTap: () => _onPlaceholderAction('Thanh toán Bottom Bar'),
-        onReceiveTap: () => _onPlaceholderAction('Nhận tiền Bottom Bar'),
+        onPaymentTap: _navigateToPayment,
+        onReceiveTap: _navigateToReceiveMoney,
       ),
 
       body: _buildBody(),
@@ -278,10 +303,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // C. Khối 4 Nút chức năng nhanh (cách 16px bên dưới banner xanh)
             QuickActionsGrid(
-              onPaymentTap: () => _onPlaceholderAction('Thanh toán'),
-              onReceiveTap: () => _onPlaceholderAction('Nhận tiền'),
-              onIncomeTap: () => _onPlaceholderAction('Thu nhập'),
-              onExpenseTap: () => _onPlaceholderAction('Chi tiêu'),
+              onPaymentTap: _navigateToPayment,
+              onReceiveTap: _navigateToReceiveMoney,
+              onIncomeTap: _navigateToReceiveMoney,
+              onExpenseTap: _navigateToPayment,
             ),
 
             // D. Khối "Tỷ lệ phân bổ 3 hũ"
