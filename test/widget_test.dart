@@ -19,6 +19,19 @@ void main() {
         CurrencyFormatter.formatTransaction(10000, isIncome: false),
         '-10,000 VND',
       );
+      expect(CurrencyFormatter.parseRawAmount('3,000,000 VND'), 3000000.0);
+      expect(CurrencyFormatter.parseRawAmount('0 VND'), 0.0);
+      expect(CurrencyFormatter.parseRawAmount(''), 0.0);
+    });
+
+    test('CurrencyInputFormatter formats input values with commas and VND', () {
+      final formatter = CurrencyInputFormatter();
+      final result = formatter.formatEditUpdate(
+        const TextEditingValue(text: ''),
+        const TextEditingValue(text: '1234567'),
+      );
+      expect(result.text, '1,234,567 VND');
+      expect(result.selection.baseOffset, 9);
     });
 
     test('AppSettings JSON serialization and defaults', () {
