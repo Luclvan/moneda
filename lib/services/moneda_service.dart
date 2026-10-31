@@ -549,17 +549,40 @@ class MonedaService {
       final id = expense['id'];
       final amount = (expense['amount'] as num?)?.toDouble() ?? 0.0;
       final jarType = (expense['jar_type'] as String? ?? 'NEED').toUpperCase();
+      final goalId = expense['goal_id'];
 
       // 1. Xóa bản ghi
       await _client.from('expenses').delete().eq('id', id);
 
-      // 2. Hoàn lại tiền vào hũ
+      // Nếu có goal_id, trừ lùi current_amount của mục tiêu tương ứng trong saving_goals
+      if (goalId != null) {
+        try {
+          final goalRes = await _client
+              .from('saving_goals')
+              .select('*')
+              .eq('id', goalId)
+              .maybeSingle();
+          if (goalRes != null) {
+            final cur =
+                (goalRes['current_amount'] as num?)?.toDouble() ?? 0.0;
+            await _client.from('saving_goals').update({
+              'current_amount': cur - amount,
+              'updated_at': DateTime.now().toIso8601String(),
+            }).eq('id', goalId);
+          }
+        } catch (e) {
+          debugPrint('Notice updating saving_goals: $e');
+        }
+      }
+
+      // 2. Hoàn lại tiền vào hũ (hoặc hũ SAVE nếu là khoản trích mục tiêu)
+      final refundJar = goalId != null ? 'SAVE' : jarType;
       final jars = await getJars();
-      final currentBalance = jars[jarType]?.balance ?? 0.0;
+      final currentBalance = jars[refundJar]?.balance ?? 0.0;
       await _client.from('jars').update({
         'balance': currentBalance + amount,
         'updated_at': DateTime.now().toIso8601String(),
-      }).eq('jar_type', jarType);
+      }).eq('jar_type', refundJar);
 
       // 3. Hoàn lại tiền vào total_balance trong app_settings
       final settings = await getAppSettings();
