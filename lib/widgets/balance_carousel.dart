@@ -10,6 +10,7 @@ class BalanceCarousel extends StatefulWidget {
   final Map<String, Jar> jars;
   final bool isBalanceHidden;
   final VoidCallback onToggleHideBalance;
+  final ValueChanged<String>? onJarTap;
 
   const BalanceCarousel({
     super.key,
@@ -17,6 +18,7 @@ class BalanceCarousel extends StatefulWidget {
     required this.jars,
     required this.isBalanceHidden,
     required this.onToggleHideBalance,
+    this.onJarTap,
   });
 
   @override
@@ -47,21 +49,25 @@ class _BalanceCarouselState extends State<BalanceCarousel> {
         amount: settings.totalBalance,
         badgeText:
             'QUY TẮC 3 HŨ [${settings.needRatio} - ${settings.wantRatio} - ${settings.saveRatio}]',
+        jarType: 'ALL',
       ),
       _CardModel(
         title: 'Hũ NEED (${settings.needRatio}%) >',
         amount: needJar.balance,
         badgeText: 'NHU CẦU THIẾT YẾU [CẦN THIẾT]',
+        jarType: 'NEED',
       ),
       _CardModel(
         title: 'Hũ WANT (${settings.wantRatio}%) >',
         amount: wantJar.balance,
         badgeText: 'MONG MUỐN CÁ NHÂN [GIẢI TRÍ]',
+        jarType: 'WANT',
       ),
       _CardModel(
         title: 'Hũ SAVE (${settings.saveRatio}%) >',
         amount: saveJar.balance,
         badgeText: 'TIẾT KIỆM & ĐẦU TƯ [TÍCH LŨY]',
+        jarType: 'SAVE',
       ),
     ];
 
@@ -204,78 +210,82 @@ class _BalanceCarouselState extends State<BalanceCarousel> {
       isHidden: widget.isBalanceHidden,
     );
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: AppColors.cardDarkOverlay,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.white.withValues(alpha: 0.3),
-          width: 0.5,
+    return InkWell(
+      onTap: () => widget.onJarTap?.call(card.jarType),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: BoxDecoration(
+          color: AppColors.cardDarkOverlay,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.white.withValues(alpha: 0.3),
+            width: 0.5,
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Tiêu đề & Icon con mắt
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                card.title,
-                style: TextStyle(
-                  color: AppColors.white.withValues(alpha: 0.9),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.2,
-                ),
-              ),
-              InkWell(
-                onTap: widget.onToggleHideBalance,
-                borderRadius: BorderRadius.circular(14),
-                child: Padding(
-                  padding: const EdgeInsets.all(2.0),
-                  child: Icon(
-                    widget.isBalanceHidden
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Tiêu đề & Icon con mắt
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  card.title,
+                  style: TextStyle(
                     color: AppColors.white.withValues(alpha: 0.9),
-                    size: 19,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2,
                   ),
                 ),
-              ),
-            ],
-          ),
+                InkWell(
+                  onTap: widget.onToggleHideBalance,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Padding(
+                    padding: const EdgeInsets.all(2.0),
+                    child: Icon(
+                      widget.isBalanceHidden
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      color: AppColors.white.withValues(alpha: 0.9),
+                      size: 19,
+                    ),
+                  ),
+                ),
+              ],
+            ),
 
-          // Số tiền
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              formattedAmount,
+            // Số tiền
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                formattedAmount,
+                style: TextStyle(
+                  color: isNegative ? AppColors.errorRed : AppColors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
+
+            // Nhãn dưới
+            Text(
+              card.badgeText,
               style: TextStyle(
-                color: isNegative ? AppColors.errorRed : AppColors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
+                color: AppColors.white.withValues(alpha: 0.8),
+                fontSize: 9.5,
+                fontWeight: FontWeight.w600,
                 letterSpacing: 0.3,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-          ),
-
-          // Nhãn dưới
-          Text(
-            card.badgeText,
-            style: TextStyle(
-              color: AppColors.white.withValues(alpha: 0.8),
-              fontSize: 9.5,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -285,10 +295,12 @@ class _CardModel {
   final String title;
   final double amount;
   final String badgeText;
+  final String jarType;
 
   _CardModel({
     required this.title,
     required this.amount,
     required this.badgeText,
+    required this.jarType,
   });
 }

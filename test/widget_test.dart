@@ -4,7 +4,11 @@ import 'package:moneda/core/utils/currency_formatter.dart';
 import 'package:moneda/models/app_settings.dart';
 import 'package:moneda/models/jar.dart';
 import 'package:moneda/models/transaction_item.dart';
+import 'package:moneda/screens/expense_detail_screen.dart';
+import 'package:moneda/screens/income_detail_screen.dart';
 import 'package:moneda/widgets/moneda_bottom_bar.dart';
+import 'package:moneda/widgets/rollover_alert_banner.dart';
+import 'package:moneda/widgets/settings_modal.dart';
 
 void main() {
   group('Moneda Unit & Widget Tests', () {
@@ -120,6 +124,123 @@ void main() {
 
       expect(tappedIndex, 1);
       expect(paymentTapped, true);
+    });
+
+    testWidgets('RolloverAlertBanner renders correctly and fires callbacks',
+        (WidgetTester tester) async {
+      bool transferCalled = false;
+      bool keepCalled = false;
+      bool dismissCalled = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RolloverAlertBanner(
+              onTransferToSave: () => transferCalled = true,
+              onKeepJars: () => keepCalled = true,
+              onDismiss: () => dismissCalled = true,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Chuyển sang Save'), findsOneWidget);
+      expect(find.text('Giữ lại'), findsOneWidget);
+      expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+
+      await tester.tap(find.text('Chuyển sang Save'));
+      expect(transferCalled, true);
+
+      await tester.tap(find.text('Giữ lại'));
+      expect(keepCalled, true);
+
+      await tester.tap(find.byIcon(Icons.close_rounded));
+      expect(dismissCalled, true);
+    });
+
+    testWidgets('SettingsModal renders tabs, sliders, and resets to default',
+        (WidgetTester tester) async {
+      final settings = AppSettings(
+        id: 1,
+        totalBalance: 10000000,
+        needRatio: 60,
+        wantRatio: 25,
+        saveRatio: 15,
+      );
+      final jars = {
+        'NEED': Jar(jarType: 'NEED', balance: 6000000),
+        'WANT': Jar(jarType: 'WANT', balance: 2500000),
+        'SAVE': Jar(jarType: 'SAVE', balance: 1500000),
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SettingsModal(
+              settings: settings,
+              jars: jars,
+            ),
+          ),
+        ),
+      );
+
+      // Kiểm tra tiêu đề và các Tab
+      expect(find.text('Cài đặt Moneda'), findsOneWidget);
+      expect(find.text('Cài đặt tỷ lệ 3 hũ'), findsOneWidget);
+      expect(find.text('Chuyển tiền nội bộ'), findsOneWidget);
+
+      // Kiểm tra tổng tỷ lệ ban đầu
+      expect(find.text('100% (Hợp lệ)'), findsOneWidget);
+
+      // Bấm nút Mặc định 50/30/20
+      await tester.tap(find.text('Mặc định 50/30/20'));
+      await tester.pump();
+
+      expect(find.text('50%'), findsOneWidget);
+      expect(find.text('30%'), findsOneWidget);
+      expect(find.text('20%'), findsOneWidget);
+      expect(find.text('100% (Hợp lệ)'), findsOneWidget);
+
+      // Chuyển sang Tab 2
+      await tester.tap(find.text('Chuyển tiền nội bộ'));
+      await tester.pump();
+
+      expect(find.text('Từ hũ'), findsOneWidget);
+      expect(find.text('Sang hũ'), findsOneWidget);
+      expect(find.text('Số tiền chuyển'), findsOneWidget);
+      expect(find.text('Xác nhận chuyển'), findsOneWidget);
+    });
+
+    testWidgets('ExpenseDetailScreen renders tabs and query card without crash',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: ExpenseDetailScreen(initialJarFilter: 'ALL'),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Chi tiết chi tiêu'), findsOneWidget);
+      expect(find.text('Tất cả'), findsOneWidget);
+      expect(find.text('Hũ Need'), findsOneWidget);
+      expect(find.text('Hũ Want'), findsOneWidget);
+      expect(find.text('Hũ Save'), findsOneWidget);
+      expect(find.text('Truy vấn giao dịch'), findsOneWidget);
+    });
+
+    testWidgets('IncomeDetailScreen renders header and query card without crash',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: IncomeDetailScreen(),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Chi tiết thu nhập'), findsOneWidget);
+      expect(find.text('Tổng thu nhập trong tháng'), findsOneWidget);
+      expect(find.text('Nhận tiền'), findsOneWidget);
+      expect(find.text('Truy vấn giao dịch'), findsOneWidget);
     });
   });
 }

@@ -8,7 +8,9 @@ import '../services/moneda_service.dart';
 
 /// Màn hình Thanh toán chi tiêu (chuẩn phong cách MB Bank)
 class PaymentScreen extends StatefulWidget {
-  const PaymentScreen({super.key});
+  final String? initialJarType;
+
+  const PaymentScreen({super.key, this.initialJarType});
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
@@ -17,8 +19,7 @@ class PaymentScreen extends StatefulWidget {
 class _PaymentScreenState extends State<PaymentScreen> {
   final MonedaService _monedaService = MonedaService();
 
-  // Mặc định chọn hũ NEED
-  String _selectedJarType = 'NEED';
+  late String _selectedJarType;
 
   final TextEditingController _categoryController = TextEditingController();
   final TextEditingController _amountController = TextEditingController();
@@ -55,6 +56,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedJarType = widget.initialJarType ?? 'NEED';
     _loadInitialData();
     _categoryController.addListener(() => setState(() {}));
     _amountController.addListener(() => setState(() {}));

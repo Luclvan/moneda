@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/supabase_config.dart';
 import '../models/app_settings.dart';
 import '../models/jar.dart';
@@ -36,7 +37,7 @@ class HomeDashboardData {
 
 /// Service tương tác với Supabase cho ứng dụng Moneda
 class MonedaService {
-  final _client = SupabaseConfig.client;
+  SupabaseClient get _client => SupabaseConfig.client;
 
   /// Lấy thông tin app_settings (id = 1)
   Future<AppSettings> getAppSettings() async {
@@ -104,7 +105,8 @@ class MonedaService {
           .order('transaction_date', ascending: false)
           .limit(limit);
 
-      final results = await Future.wait([incomesFuture, expensesFuture]);
+      final results =
+          await Future.wait<dynamic>(<Future<dynamic>>[incomesFuture, expensesFuture]);
 
       final incomeRows = results[0] as List<dynamic>;
       final expenseRows = results[1] as List<dynamic>;
@@ -169,7 +171,8 @@ class MonedaService {
           .order('transaction_date', ascending: false)
           .limit(30);
 
-      final results = await Future.wait([sourcesFuture, incomesFuture]);
+      final results =
+          await Future.wait<dynamic>(<Future<dynamic>>[sourcesFuture, incomesFuture]);
       final sourcesList = results[0] as List<dynamic>;
       final incomesList = results[1] as List<dynamic>;
 
@@ -303,7 +306,7 @@ class MonedaService {
         final newWant = (jars['WANT']?.balance ?? 0) + allocatedWant;
         final newSave = (jars['SAVE']?.balance ?? 0) + allocatedSave;
 
-        await Future.wait([
+        await Future.wait<dynamic>(<Future<dynamic>>[
           _client.from('jars').update({
             'balance': newNeed,
             'updated_at': nowIso,
@@ -390,6 +393,71 @@ class MonedaService {
     }
   }
 
+  /// Cập nhật tỷ lệ phân bổ của 3 hũ (phải có tổng bằng 100%)
+  Future<void> updateJarRatios({
+    required int needRatio,
+    required int wantRatio,
+    required int saveRatio,
+  }) async {
+    if (needRatio + wantRatio + saveRatio != 100) {
+      throw ArgumentError('Tổng tỷ lệ của 3 hũ bắt buộc phải bằng 100%');
+    }
+
+    try {
+      await _client.from('app_settings').update({
+        'need_ratio': needRatio,
+        'want_ratio': wantRatio,
+        'save_ratio': saveRatio,
+      }).eq('id', 1);
+    } catch (e) {
+      debugPrint('Error updating jar ratios: $e');
+      rethrow;
+    }
+  }
+
+  /// Chuyển tiền nội bộ giữa các hũ (không làm đổi total_balance)
+  Future<void> transferBetweenJars({
+    required String fromJar,
+    required String toJar,
+    required double amount,
+  }) async {
+    final from = fromJar.toUpperCase();
+    final to = toJar.toUpperCase();
+
+    if (from == to) {
+      throw ArgumentError('Hũ chuyển và hũ nhận phải khác nhau');
+    }
+    if (amount <= 0) {
+      throw ArgumentError('Số tiền chuyển phải lớn hơn 0');
+    }
+
+    try {
+      final jars = await getJars();
+      final fromBalance = jars[from]?.balance ?? 0.0;
+      final toBalance = jars[to]?.balance ?? 0.0;
+      final nowIso = DateTime.now().toIso8601String();
+
+      await Future.wait<dynamic>(<Future<dynamic>>[
+        _client.from('jars').update({
+          'balance': fromBalance - amount,
+          'updated_at': nowIso,
+        }).eq('jar_type', from),
+        _client.from('jars').update({
+          'balance': toBalance + amount,
+          'updated_at': nowIso,
+        }).eq('jar_type', to),
+      ]);
+    } catch (e) {
+      debugPrint('Error transferring between jars: $e');
+      rethrow;
+    }
+  }
+
+  /// Xử lý quyết toán đầu tháng: Chuyển toàn bộ số dư dương của NEED & WANT sang SAVE
+  Future<void> executeMonthlyRollover() async {
+    await executeRollover(transferToSave: true);
+  }
+
   /// Xử lý quyết toán đầu tháng (Rollover)
   /// - transferToSave: true -> chuyển số dư dương của NEED & WANT sang SAVE, reset NEED & WANT về 0
   /// - transferToSave: false -> giữ lại từng hũ, chỉ cập nhật last_rollover_month thành tháng hiện tại
@@ -437,6 +505,143 @@ class MonedaService {
       }).eq('id', 1);
     } catch (e) {
       debugPrint('Error executing rollover: $e');
+      rethrow;
+    }
+  }
+
+  /// Lấy danh sách chi tiêu lọc theo jarType và khoảng thời gian
+  Future<List<Map<String, dynamic>>> getExpenses({
+    String? jarType,
+    DateTime? fromDate,
+    DateTime? toDate,
+  }) async {
+    try {
+      var query = _client.from('expenses').select('*');
+
+      if (jarType != null && jarType != 'ALL' && jarType.isNotEmpty) {
+        query = query.eq('jar_type', jarType.toUpperCase());
+      }
+
+      if (fromDate != null) {
+        final startOfDay =
+            DateTime(fromDate.year, fromDate.month, fromDate.day);
+        query = query.gte('transaction_date', startOfDay.toIso8601String());
+      }
+
+      if (toDate != null) {
+        final endOfDay = DateTime(
+            toDate.year, toDate.month, toDate.day, 23, 59, 59, 999);
+        query = query.lte('transaction_date', endOfDay.toIso8601String());
+      }
+
+      final response =
+          await query.order('transaction_date', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching expenses: $e');
+      return [];
+    }
+  }
+
+  /// Xóa bản ghi chi tiêu và hoàn lại tiền vào hũ & total_balance
+  Future<void> deleteExpense(Map<String, dynamic> expense) async {
+    try {
+      final id = expense['id'];
+      final amount = (expense['amount'] as num?)?.toDouble() ?? 0.0;
+      final jarType = (expense['jar_type'] as String? ?? 'NEED').toUpperCase();
+
+      // 1. Xóa bản ghi
+      await _client.from('expenses').delete().eq('id', id);
+
+      // 2. Hoàn lại tiền vào hũ
+      final jars = await getJars();
+      final currentBalance = jars[jarType]?.balance ?? 0.0;
+      await _client.from('jars').update({
+        'balance': currentBalance + amount,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('jar_type', jarType);
+
+      // 3. Hoàn lại tiền vào total_balance trong app_settings
+      final settings = await getAppSettings();
+      await _client.from('app_settings').update({
+        'total_balance': settings.totalBalance + amount,
+      }).eq('id', 1);
+    } catch (e) {
+      debugPrint('Error deleting expense: $e');
+      rethrow;
+    }
+  }
+
+  /// Lấy danh sách thu nhập trong khoảng thời gian
+  Future<List<Map<String, dynamic>>> getIncomes({
+    DateTime? fromDate,
+    DateTime? toDate,
+  }) async {
+    try {
+      var query = _client.from('incomes').select('*');
+
+      if (fromDate != null) {
+        final startOfDay =
+            DateTime(fromDate.year, fromDate.month, fromDate.day);
+        query = query.gte('transaction_date', startOfDay.toIso8601String());
+      }
+
+      if (toDate != null) {
+        final endOfDay = DateTime(
+            toDate.year, toDate.month, toDate.day, 23, 59, 59, 999);
+        query = query.lte('transaction_date', endOfDay.toIso8601String());
+      }
+
+      final response =
+          await query.order('transaction_date', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching incomes: $e');
+      return [];
+    }
+  }
+
+  /// Xóa bản ghi thu nhập và thu hồi tiền đã phân bổ ở các hũ & total_balance
+  Future<void> deleteIncome(Map<String, dynamic> income) async {
+    try {
+      final id = income['id'];
+      final amount = (income['amount'] as num?)?.toDouble() ?? 0.0;
+      final allocatedNeed =
+          (income['allocated_need'] as num?)?.toDouble() ?? 0.0;
+      final allocatedWant =
+          (income['allocated_want'] as num?)?.toDouble() ?? 0.0;
+      final allocatedSave =
+          (income['allocated_save'] as num?)?.toDouble() ?? 0.0;
+
+      // 1. Xóa bản ghi khỏi incomes
+      await _client.from('incomes').delete().eq('id', id);
+
+      // 2. Thu hồi số tiền tương ứng ở các hũ
+      final jars = await getJars();
+      final nowIso = DateTime.now().toIso8601String();
+
+      await Future.wait<dynamic>(<Future<dynamic>>[
+        _client.from('jars').update({
+          'balance': (jars['NEED']?.balance ?? 0.0) - allocatedNeed,
+          'updated_at': nowIso,
+        }).eq('jar_type', 'NEED'),
+        _client.from('jars').update({
+          'balance': (jars['WANT']?.balance ?? 0.0) - allocatedWant,
+          'updated_at': nowIso,
+        }).eq('jar_type', 'WANT'),
+        _client.from('jars').update({
+          'balance': (jars['SAVE']?.balance ?? 0.0) - allocatedSave,
+          'updated_at': nowIso,
+        }).eq('jar_type', 'SAVE'),
+      ]);
+
+      // 3. Trừ total_balance trong app_settings
+      final settings = await getAppSettings();
+      await _client.from('app_settings').update({
+        'total_balance': settings.totalBalance - amount,
+      }).eq('id', 1);
+    } catch (e) {
+      debugPrint('Error deleting income: $e');
       rethrow;
     }
   }
