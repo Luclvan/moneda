@@ -307,7 +307,11 @@ class _SettingsModalState extends State<SettingsModal> {
           color: AppColors.primaryBlue,
           onChanged: (val) {
             setState(() {
-              _needRatio = val;
+              _needRatio = val.roundToDouble();
+              if (_needRatio + _wantRatio > 100) {
+                _wantRatio = 100 - _needRatio;
+              }
+              _saveRatio = (100 - _needRatio - _wantRatio).clamp(0, 100);
             });
           },
         ),
@@ -320,7 +324,11 @@ class _SettingsModalState extends State<SettingsModal> {
           color: AppColors.lightBlue,
           onChanged: (val) {
             setState(() {
-              _wantRatio = val;
+              _wantRatio = val.roundToDouble();
+              if (_needRatio + _wantRatio > 100) {
+                _needRatio = 100 - _wantRatio;
+              }
+              _saveRatio = (100 - _needRatio - _wantRatio).clamp(0, 100);
             });
           },
         ),
@@ -333,7 +341,11 @@ class _SettingsModalState extends State<SettingsModal> {
           color: AppColors.saveGray,
           onChanged: (val) {
             setState(() {
-              _saveRatio = val;
+              _saveRatio = val.roundToDouble();
+              if (_needRatio + _saveRatio > 100) {
+                _needRatio = 100 - _saveRatio;
+              }
+              _wantRatio = (100 - _needRatio - _saveRatio).clamp(0, 100);
             });
           },
         ),

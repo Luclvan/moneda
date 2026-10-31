@@ -11,10 +11,9 @@ import '../widgets/quick_actions_grid.dart';
 import '../widgets/recent_transactions_card.dart';
 import '../widgets/rollover_alert_banner.dart';
 import '../widgets/settings_modal.dart';
-import 'expense_detail_screen.dart';
-import 'income_detail_screen.dart';
 import 'payment_screen.dart';
 import 'receive_money_screen.dart';
+import 'transaction_history_screen.dart';
 
 /// Màn hình Trang chủ (Home Dashboard) chuẩn phong cách MB Bank
 class HomeScreen extends StatefulWidget {
@@ -165,24 +164,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _navigateToExpenseDetail({String initialJarFilter = 'ALL'}) async {
+  Future<void> _navigateToTransactionHistory({String initialTab = 'ALL'}) async {
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) =>
-            ExpenseDetailScreen(initialJarFilter: initialJarFilter),
-      ),
-    );
-    if (mounted) {
-      _loadDashboardData();
-    }
-  }
-
-  Future<void> _navigateToIncomeDetail() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const IncomeDetailScreen(),
+            TransactionHistoryScreen(initialTab: initialTab),
       ),
     );
     if (mounted) {
@@ -248,7 +235,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
 
-      // F. Thanh Bottom Navigation Bar cố định ở đáy
+      // F. Thanh Bottom Navigation Bar 5 nút cố định ở đáy
       bottomNavigationBar: MonedaBottomBar(
         currentIndex: _bottomNavIndex,
         onTap: (index) {
@@ -256,8 +243,27 @@ class _HomeScreenState extends State<HomeScreen> {
             _bottomNavIndex = index;
           });
         },
+        onReportTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Tính năng Báo cáo đang được phát triển.'),
+              backgroundColor: AppColors.primaryBlue,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        },
         onPaymentTap: _navigateToPayment,
         onReceiveTap: _navigateToReceiveMoney,
+        onGoalsTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content:
+                  Text('Tính năng Mục tiêu tiết kiệm đang được phát triển.'),
+              backgroundColor: AppColors.primaryBlue,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        },
       ),
 
       body: _buildBody(),
@@ -369,7 +375,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       });
                     },
                     onJarTap: (jarType) =>
-                        _navigateToExpenseDetail(initialJarFilter: jarType),
+                        _navigateToTransactionHistory(initialTab: jarType),
                   ),
                 ],
               ),
@@ -379,9 +385,9 @@ class _HomeScreenState extends State<HomeScreen> {
             QuickActionsGrid(
               onPaymentTap: _navigateToPayment,
               onReceiveTap: _navigateToReceiveMoney,
-              onIncomeTap: _navigateToIncomeDetail,
-              onExpenseTap: () =>
-                  _navigateToExpenseDetail(initialJarFilter: 'ALL'),
+              onTransferTap: () => _openSettingsModal(initialTab: 1),
+              onHistoryTap: () =>
+                  _navigateToTransactionHistory(initialTab: 'ALL'),
             ),
 
             // D. Khối "Tỷ lệ phân bổ 3 hũ"
@@ -391,7 +397,7 @@ class _HomeScreenState extends State<HomeScreen> {
               isBalanceHidden: _isBalanceHidden,
               onCustomizeTap: () => _openSettingsModal(initialTab: 0),
               onJarTap: (jarType) =>
-                  _navigateToExpenseDetail(initialJarFilter: jarType),
+                  _navigateToTransactionHistory(initialTab: jarType),
             ),
 
             // E. Khối "Giao dịch gần đây"
@@ -399,7 +405,7 @@ class _HomeScreenState extends State<HomeScreen> {
               transactions: _recentTransactions,
               isBalanceHidden: _isBalanceHidden,
               onViewAllTap: () =>
-                  _navigateToExpenseDetail(initialJarFilter: 'ALL'),
+                  _navigateToTransactionHistory(initialTab: 'ALL'),
             ),
 
             // Khoảng đệm 110px ở đáy để nội dung không bị thanh Bottom Bar che khuất

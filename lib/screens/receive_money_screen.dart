@@ -8,7 +8,12 @@ import '../services/moneda_service.dart';
 
 /// Màn hình Nhận tiền vào hũ (chuẩn phong cách MB Bank)
 class ReceiveMoneyScreen extends StatefulWidget {
-  const ReceiveMoneyScreen({super.key});
+  final String initialTargetJar;
+
+  const ReceiveMoneyScreen({
+    super.key,
+    this.initialTargetJar = 'ALL_SPLIT',
+  });
 
   @override
   State<ReceiveMoneyScreen> createState() => _ReceiveMoneyScreenState();
@@ -22,7 +27,7 @@ class _ReceiveMoneyScreenState extends State<ReceiveMoneyScreen> {
   final FocusNode _amountFocusNode = FocusNode();
 
   // 'ALL_SPLIT', 'NEED', 'WANT', 'SAVE'
-  String _selectedJar = 'ALL_SPLIT';
+  late String _selectedJar;
 
   AppSettings? _settings;
   Map<String, Jar> _jars = {};
@@ -41,6 +46,7 @@ class _ReceiveMoneyScreenState extends State<ReceiveMoneyScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedJar = widget.initialTargetJar;
     _loadInitialData();
     _sourceController.addListener(() => setState(() {}));
     _amountController.addListener(() => setState(() {}));

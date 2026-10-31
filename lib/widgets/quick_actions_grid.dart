@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 
-/// Khối 4 nút chức năng nhanh (Thanh toán, Nhận tiền, Thu nhập, Chi tiêu)
+/// Khối 4 nút chức năng nhanh chuẩn MB Bank:
+/// 1. Thanh toán (credit_card)
+/// 2. Nhận tiền (attach_money)
+/// 3. Chuyển tiền (swap_vert)
+/// 4. Lịch sử giao dịch (access_time)
 class QuickActionsGrid extends StatelessWidget {
   final VoidCallback? onPaymentTap;
   final VoidCallback? onReceiveTap;
+  final VoidCallback? onTransferTap;
+  final VoidCallback? onHistoryTap;
+
+  // Giữ lại alias cũ nếu có caller gọi
   final VoidCallback? onIncomeTap;
   final VoidCallback? onExpenseTap;
 
@@ -12,6 +20,8 @@ class QuickActionsGrid extends StatelessWidget {
     super.key,
     this.onPaymentTap,
     this.onReceiveTap,
+    this.onTransferTap,
+    this.onHistoryTap,
     this.onIncomeTap,
     this.onExpenseTap,
   });
@@ -20,7 +30,7 @@ class QuickActionsGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(20),
@@ -37,27 +47,39 @@ class QuickActionsGrid extends StatelessWidget {
         ],
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _ActionButton(
-            icon: Icons.qr_code_scanner_rounded,
-            label: 'Thanh toán',
-            onTap: onPaymentTap,
+          // 1. Thanh toán
+          Expanded(
+            child: _ActionButton(
+              icon: Icons.credit_card_rounded,
+              label: 'Thanh toán',
+              onTap: onPaymentTap,
+            ),
           ),
-          _ActionButton(
-            icon: Icons.move_to_inbox_rounded,
-            label: 'Nhận tiền',
-            onTap: onReceiveTap,
+          // 2. Nhận tiền
+          Expanded(
+            child: _ActionButton(
+              icon: Icons.attach_money_rounded,
+              label: 'Nhận tiền',
+              onTap: onReceiveTap ?? onIncomeTap,
+            ),
           ),
-          _ActionButton(
-            icon: Icons.account_balance_wallet_outlined,
-            label: 'Thu nhập',
-            onTap: onIncomeTap,
+          // 3. Chuyển tiền
+          Expanded(
+            child: _ActionButton(
+              icon: Icons.swap_vert_rounded,
+              label: 'Chuyển tiền',
+              onTap: onTransferTap,
+            ),
           ),
-          _ActionButton(
-            icon: Icons.shopping_bag_outlined,
-            label: 'Chi tiêu',
-            onTap: onExpenseTap,
+          // 4. Lịch sử giao dịch
+          Expanded(
+            child: _ActionButton(
+              icon: Icons.access_time_rounded,
+              label: 'Lịch sử GD',
+              fullLabel: 'Lịch sử giao dịch',
+              onTap: onHistoryTap ?? onExpenseTap,
+            ),
           ),
         ],
       ),
@@ -68,11 +90,13 @@ class QuickActionsGrid extends StatelessWidget {
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String? fullLabel;
   final VoidCallback? onTap;
 
   const _ActionButton({
     required this.icon,
     required this.label,
+    this.fullLabel,
     this.onTap,
   });
 
@@ -82,7 +106,7 @@ class _ActionButton extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -105,12 +129,16 @@ class _ActionButton extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.textDark,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.textDark,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],

@@ -6,7 +6,9 @@ import 'package:moneda/models/jar.dart';
 import 'package:moneda/models/transaction_item.dart';
 import 'package:moneda/screens/expense_detail_screen.dart';
 import 'package:moneda/screens/income_detail_screen.dart';
+import 'package:moneda/screens/transaction_history_screen.dart';
 import 'package:moneda/widgets/moneda_bottom_bar.dart';
+import 'package:moneda/widgets/quick_actions_grid.dart';
 import 'package:moneda/widgets/rollover_alert_banner.dart';
 import 'package:moneda/widgets/settings_modal.dart';
 
@@ -86,10 +88,11 @@ void main() {
       expect(expenseItem.jarType, 'NEED');
     });
 
-    testWidgets('MonedaBottomBar renders without overflow and handles taps',
+    testWidgets('MonedaBottomBar renders 5 buttons without overflow and handles taps',
         (WidgetTester tester) async {
       int tappedIndex = -1;
       bool paymentTapped = false;
+      bool receiveTapped = false;
 
       // Pump Bottom Bar bên trong Scaffold với kích thước chuẩn mobile iPhone (390x844)
       tester.view.physicalSize = const Size(390 * 3, 844 * 3);
@@ -108,22 +111,72 @@ void main() {
               onPaymentTap: () {
                 paymentTapped = true;
               },
+              onReceiveTap: () {
+                receiveTapped = true;
+              },
             ),
           ),
         ),
       );
 
-      // Kiểm tra sự hiện diện của 3 nhãn điều hướng
+      // Kiểm tra sự hiện diện của cả 5 nhãn điều hướng
       expect(find.text('Trang chủ'), findsOneWidget);
+      expect(find.text('Báo cáo'), findsOneWidget);
       expect(find.text('Thanh toán'), findsOneWidget);
       expect(find.text('Nhận tiền'), findsOneWidget);
+      expect(find.text('Mục tiêu'), findsOneWidget);
 
-      // Thao tác bấm nút Thanh toán ở giữa
+      // Thao tác bấm nút Thanh toán ở giữa (index 2)
       await tester.tap(find.text('Thanh toán'));
       await tester.pumpAndSettle();
 
-      expect(tappedIndex, 1);
+      expect(tappedIndex, 2);
       expect(paymentTapped, true);
+
+      // Thao tác bấm nút Nhận tiền (index 3)
+      await tester.tap(find.text('Nhận tiền'));
+      await tester.pumpAndSettle();
+
+      expect(tappedIndex, 3);
+      expect(receiveTapped, true);
+    });
+
+    testWidgets('QuickActionsGrid renders 4 buttons and handles taps',
+        (WidgetTester tester) async {
+      bool paymentPressed = false;
+      bool receivePressed = false;
+      bool transferPressed = false;
+      bool historyPressed = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: QuickActionsGrid(
+              onPaymentTap: () => paymentPressed = true,
+              onReceiveTap: () => receivePressed = true,
+              onTransferTap: () => transferPressed = true,
+              onHistoryTap: () => historyPressed = true,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Thanh toán'), findsOneWidget);
+      expect(find.text('Nhận tiền'), findsOneWidget);
+      expect(find.text('Chuyển tiền'), findsOneWidget);
+      expect(find.text('Lịch sử GD'), findsOneWidget);
+
+      await tester.tap(find.text('Thanh toán'));
+      expect(paymentPressed, true);
+
+      await tester.tap(find.text('Nhận tiền'));
+      expect(receivePressed, true);
+
+      await tester.tap(find.text('Chuyển tiền'));
+      expect(transferPressed, true);
+
+      await tester.tap(find.text('Lịch sử GD'));
+      expect(historyPressed, true);
     });
 
     testWidgets('RolloverAlertBanner renders correctly and fires callbacks',
@@ -209,6 +262,26 @@ void main() {
       expect(find.text('Sang hũ'), findsOneWidget);
       expect(find.text('Số tiền chuyển'), findsOneWidget);
       expect(find.text('Xác nhận chuyển'), findsOneWidget);
+    });
+
+    testWidgets('TransactionHistoryScreen renders tabs and query card without crash',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: TransactionHistoryScreen(initialTab: 'ALL'),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Lịch sử giao dịch'), findsOneWidget);
+      expect(find.text('Tất cả'), findsOneWidget);
+      expect(find.text('Thu nhập'), findsOneWidget);
+      expect(find.text('Hũ Need'), findsOneWidget);
+      expect(find.text('Hũ Want'), findsOneWidget);
+      expect(find.text('Hũ Save'), findsOneWidget);
+      expect(find.text('Truy vấn giao dịch'), findsOneWidget);
+      expect(find.text('Thanh toán'), findsOneWidget);
+      expect(find.text('Nhận tiền'), findsOneWidget);
     });
 
     testWidgets('ExpenseDetailScreen renders tabs and query card without crash',
