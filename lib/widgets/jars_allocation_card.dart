@@ -10,6 +10,7 @@ class JarsAllocationCard extends StatelessWidget {
   final Map<String, Jar> jars;
   final bool isBalanceHidden;
   final VoidCallback? onCustomizeTap;
+  final ValueChanged<String>? onJarTap;
 
   const JarsAllocationCard({
     super.key,
@@ -17,6 +18,7 @@ class JarsAllocationCard extends StatelessWidget {
     required this.jars,
     required this.isBalanceHidden,
     this.onCustomizeTap,
+    this.onJarTap,
   });
 
   @override
@@ -139,6 +141,7 @@ class JarsAllocationCard extends StatelessWidget {
                   balance: needJar.balance,
                   description: 'Thiết yếu',
                   isBalanceHidden: isBalanceHidden,
+                  onTap: () => onJarTap?.call('NEED'),
                 ),
               ),
               const SizedBox(width: 8),
@@ -150,6 +153,7 @@ class JarsAllocationCard extends StatelessWidget {
                   balance: wantJar.balance,
                   description: 'Mong muốn',
                   isBalanceHidden: isBalanceHidden,
+                  onTap: () => onJarTap?.call('WANT'),
                 ),
               ),
               const SizedBox(width: 8),
@@ -161,6 +165,7 @@ class JarsAllocationCard extends StatelessWidget {
                   balance: saveJar.balance,
                   description: 'Tiết kiệm',
                   isBalanceHidden: isBalanceHidden,
+                  onTap: () => onJarTap?.call('SAVE'),
                 ),
               ),
             ],
@@ -178,6 +183,7 @@ class _JarMiniCard extends StatelessWidget {
   final double balance;
   final String description;
   final bool isBalanceHidden;
+  final VoidCallback? onTap;
 
   const _JarMiniCard({
     required this.name,
@@ -186,6 +192,7 @@ class _JarMiniCard extends StatelessWidget {
     required this.balance,
     required this.description,
     required this.isBalanceHidden,
+    this.onTap,
   });
 
   @override
@@ -196,16 +203,19 @@ class _JarMiniCard extends StatelessWidget {
       isHidden: isBalanceHidden,
     );
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.borderGray,
-          width: 1,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.borderGray,
+            width: 1,
+          ),
         ),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -264,6 +274,7 @@ class _JarMiniCard extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }

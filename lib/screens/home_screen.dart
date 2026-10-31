@@ -10,6 +10,9 @@ import '../widgets/moneda_bottom_bar.dart';
 import '../widgets/quick_actions_grid.dart';
 import '../widgets/recent_transactions_card.dart';
 import '../widgets/rollover_alert_banner.dart';
+import '../widgets/settings_modal.dart';
+import 'expense_detail_screen.dart';
+import 'income_detail_screen.dart';
 import 'payment_screen.dart';
 import 'receive_money_screen.dart';
 
@@ -26,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool _isLoading = true;
   bool _isRolloverLoading = false;
+  bool _isRolloverDismissed = false;
   String? _errorMessage;
 
   // Trạng thái ẩn/hiện số dư (mặc định hiện số dư)
@@ -72,13 +76,37 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Xử lý quyết toán đầu tháng
   Future<void> _handleRollover({required bool transferToSave}) async {
+    if (!transferToSave) {
+      // Giữ nguyên số tiền ở từng hũ và giữ lại thông báo để chuyển sau
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Đã giữ lại số dư từng hũ. Bạn có thể chuyển sang Save bất cứ lúc nào trong tháng.',
+          ),
+          backgroundColor: AppColors.primaryBlue,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isRolloverLoading = true;
     });
 
     try {
-      await _monedaService.executeRollover(transferToSave: transferToSave);
+      await _monedaService.executeMonthlyRollover();
       await _loadDashboardData();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Đã chuyển toàn bộ số dư thặng dư sang hũ Save thành công!',
+          ),
+          backgroundColor: AppColors.successGreen,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -98,6 +126,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onPlaceholderAction(String title) {
     debugPrint('Tapped action: $title');
+  }
+
+  Future<void> _openSettingsModal({int initialTab = 0}) async {
+    if (_settings == null) return;
+    final result = await SettingsModal.show(
+      context,
+      settings: _settings!,
+      jars: _jars,
+      initialTabIndex: initialTab,
+    );
+    if (result == true && mounted) {
+      _loadDashboardData();
+    }
   }
 
   Future<void> _navigateToReceiveMoney() async {
@@ -120,6 +161,31 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (result == true || mounted) {
+      _loadDashboardData();
+    }
+  }
+
+  Future<void> _navigateToExpenseDetail({String initialJarFilter = 'ALL'}) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            ExpenseDetailScreen(initialJarFilter: initialJarFilter),
+      ),
+    );
+    if (mounted) {
+      _loadDashboardData();
+    }
+  }
+
+  Future<void> _navigateToIncomeDetail() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const IncomeDetailScreen(),
+      ),
+    );
+    if (mounted) {
       _loadDashboardData();
     }
   }
@@ -176,7 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: 8),
           _buildCircleButton(
             icon: Icons.menu_rounded,
-            onTap: () => _onPlaceholderAction('Menu'),
+            onTap: () => _openSettingsModal(initialTab: 0),
           ),
           const SizedBox(width: 16),
         ],
@@ -278,11 +344,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Banner nhắc nhở quyết toán đầu tháng (nếu cần)
-                  if (dashboardData.needsRolloverReminder)
+                  if (dashboardData.needsRolloverReminder &&
+                      !_isRolloverDismissed)
                     RolloverAlertBanner(
                       onTransferToSave: () =>
                           _handleRollover(transferToSave: true),
                       onKeepJars: () => _handleRollover(transferToSave: false),
+                      onDismiss: () {
+                        setState(() {
+                          _isRolloverDismissed = true;
+                        });
+                      },
                       isLoading: _isRolloverLoading,
                     ),
 
@@ -296,6 +368,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         _isBalanceHidden = !_isBalanceHidden;
                       });
                     },
+                    onJarTap: (jarType) =>
+                        _navigateToExpenseDetail(initialJarFilter: jarType),
                   ),
                 ],
               ),
@@ -305,8 +379,9 @@ class _HomeScreenState extends State<HomeScreen> {
             QuickActionsGrid(
               onPaymentTap: _navigateToPayment,
               onReceiveTap: _navigateToReceiveMoney,
-              onIncomeTap: _navigateToReceiveMoney,
-              onExpenseTap: _navigateToPayment,
+              onIncomeTap: _navigateToIncomeDetail,
+              onExpenseTap: () =>
+                  _navigateToExpenseDetail(initialJarFilter: 'ALL'),
             ),
 
             // D. Khối "Tỷ lệ phân bổ 3 hũ"
@@ -314,14 +389,17 @@ class _HomeScreenState extends State<HomeScreen> {
               settings: settings,
               jars: _jars,
               isBalanceHidden: _isBalanceHidden,
-              onCustomizeTap: () => _onPlaceholderAction('Tùy chỉnh tỷ lệ hũ'),
+              onCustomizeTap: () => _openSettingsModal(initialTab: 0),
+              onJarTap: (jarType) =>
+                  _navigateToExpenseDetail(initialJarFilter: jarType),
             ),
 
             // E. Khối "Giao dịch gần đây"
             RecentTransactionsCard(
               transactions: _recentTransactions,
               isBalanceHidden: _isBalanceHidden,
-              onViewAllTap: () => _onPlaceholderAction('Xem tất cả giao dịch'),
+              onViewAllTap: () =>
+                  _navigateToExpenseDetail(initialJarFilter: 'ALL'),
             ),
 
             // Khoảng đệm 110px ở đáy để nội dung không bị thanh Bottom Bar che khuất
