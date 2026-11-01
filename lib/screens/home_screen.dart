@@ -14,6 +14,7 @@ import '../widgets/settings_modal.dart';
 import 'payment_screen.dart';
 import 'receive_money_screen.dart';
 import 'report_screen.dart';
+import 'saving_goals_screen.dart';
 import 'transaction_history_screen.dart';
 
 /// Màn hình Trang chủ (Home Dashboard) chuẩn phong cách MB Bank
@@ -190,6 +191,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _navigateToSavingGoals() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SavingGoalsScreen(),
+      ),
+    );
+    if (mounted) {
+      _loadDashboardData();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -259,16 +272,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onReportTap: _navigateToReport,
         onPaymentTap: _navigateToPayment,
         onReceiveTap: _navigateToReceiveMoney,
-        onGoalsTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content:
-                  Text('Tính năng Mục tiêu tiết kiệm đang được phát triển.'),
-              backgroundColor: AppColors.primaryBlue,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        },
+        onGoalsTap: _navigateToSavingGoals,
       ),
 
       body: _buildBody(),

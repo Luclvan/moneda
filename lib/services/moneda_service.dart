@@ -5,6 +5,7 @@ import '../core/config/supabase_config.dart';
 import '../models/app_settings.dart';
 import '../models/jar.dart';
 import '../models/monthly_report.dart';
+import '../models/saving_goal.dart';
 import '../models/transaction_item.dart';
 
 /// Dữ liệu tổng hợp cho Màn hình Trang chủ
@@ -796,6 +797,154 @@ class MonedaService {
         jars: emptyJars,
         allExpenses: const [],
       );
+    }
+  }
+
+  /// Lấy danh sách mục tiêu tiết kiệm sắp xếp theo created_at ASC
+  Future<List<Map<String, dynamic>>> getSavingGoals() async {
+    try {
+      final response = await _client
+          .from('saving_goals')
+          .select('*')
+          .order('created_at', ascending: true);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching saving goals: $e');
+      return [];
+    }
+  }
+
+  /// Lấy danh sách mục tiêu tiết kiệm dưới dạng SavingGoal models
+  Future<List<SavingGoal>> getSavingGoalModels() async {
+    final list = await getSavingGoals();
+    return list.map((json) => SavingGoal.fromJson(json)).toList();
+  }
+
+  /// Thêm mới hoặc Cập nhật mục tiêu tiết kiệm
+  Future<void> createOrUpdateSavingGoal({
+    int? id,
+    required String goalName,
+    required double targetAmount,
+    DateTime? deadline,
+  }) async {
+    try {
+      if (id == null) {
+        // Thêm mới
+        final data = {
+          'goal_name': goalName.trim(),
+          'target_amount': targetAmount,
+          'current_amount': 0.0,
+          if (deadline != null) 'deadline': deadline.toIso8601String(),
+          'created_at': DateTime.now().toIso8601String(),
+        };
+        await _client.from('saving_goals').insert(data);
+      } else {
+        // Cập nhật
+        final data = {
+          'goal_name': goalName.trim(),
+          'target_amount': targetAmount,
+          'deadline': deadline?.toIso8601String(),
+        };
+        await _client.from('saving_goals').update(data).eq('id', id);
+      }
+    } catch (e) {
+      debugPrint('Error creating or updating saving goal: $e');
+      rethrow;
+    }
+  }
+
+  /// Xóa mục tiêu tiết kiệm và hoàn trả current_amount vào hũ SAVE & total_balance nếu có
+  Future<void> deleteSavingGoal(Map<String, dynamic> goal) async {
+    try {
+      final goalId = goal['id'];
+      final currentAmount = (goal['current_amount'] as num?)?.toDouble() ?? 0.0;
+
+      // Nếu có số dư đã tích lũy > 0, hoàn trả vào hũ SAVE và total_balance
+      if (currentAmount > 0) {
+        final jars = await getJars();
+        final saveBalance = jars['SAVE']?.balance ?? 0.0;
+        final newSaveBalance = saveBalance + currentAmount;
+
+        await _client.from('jars').update({
+          'balance': newSaveBalance,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('jar_type', 'SAVE');
+
+        final settings = await getAppSettings();
+        await _client.from('app_settings').update({
+          'total_balance': settings.totalBalance + currentAmount,
+        }).eq('id', 1);
+
+        // Xóa các bản ghi expenses phát sinh từ mục tiêu này
+        await _client.from('expenses').delete().eq('goal_id', goalId);
+      }
+
+      // Xóa bản ghi trong saving_goals
+      await _client.from('saving_goals').delete().eq('id', goalId);
+    } catch (e) {
+      debugPrint('Error deleting saving goal: $e');
+      rethrow;
+    }
+  }
+
+  /// Chuyển tiền từ Hũ SAVE vào mục tiêu tiết kiệm
+  Future<void> transferSaveToGoal({
+    required int goalId,
+    required String goalName,
+    required double amount,
+  }) async {
+    try {
+      if (amount <= 0) {
+        throw Exception('Số tiền chuyển phải lớn hơn 0');
+      }
+
+      final jars = await getJars();
+      final currentSaveBalance = jars['SAVE']?.balance ?? 0.0;
+
+      if (amount > currentSaveBalance) {
+        throw Exception('Số dư trong Hũ SAVE không đủ để chuyển vào mục tiêu');
+      }
+
+      final nowIso = DateTime.now().toIso8601String();
+
+      // 1. Trừ số dư Hũ SAVE trong bảng jars
+      await _client.from('jars').update({
+        'balance': currentSaveBalance - amount,
+        'updated_at': nowIso,
+      }).eq('jar_type', 'SAVE');
+
+      // 2. Trừ total_balance trong bảng app_settings
+      final settings = await getAppSettings();
+      await _client.from('app_settings').update({
+        'total_balance': settings.totalBalance - amount,
+      }).eq('id', 1);
+
+      // 3. Cộng amount vào current_amount của goal trong saving_goals
+      final goalRes = await _client
+          .from('saving_goals')
+          .select('current_amount')
+          .eq('id', goalId)
+          .maybeSingle();
+
+      final currentGoalAmount =
+          (goalRes?['current_amount'] as num?)?.toDouble() ?? 0.0;
+
+      await _client.from('saving_goals').update({
+        'current_amount': currentGoalAmount + amount,
+      }).eq('id', goalId);
+
+      // 4. Lưu 1 bản ghi vào bảng expenses
+      await _client.from('expenses').insert({
+        'jar_type': 'SAVE',
+        'category': 'Mục tiêu tiết kiệm',
+        'title': 'Nạp tiền vào mục tiêu: $goalName',
+        'amount': amount,
+        'goal_id': goalId,
+        'transaction_date': nowIso,
+      });
+    } catch (e) {
+      debugPrint('Error transferring from SAVE to goal: $e');
+      rethrow;
     }
   }
 }
