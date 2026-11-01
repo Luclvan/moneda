@@ -5,6 +5,7 @@ import '../core/utils/currency_formatter.dart';
 import '../models/app_settings.dart';
 import '../models/jar.dart';
 import '../services/moneda_service.dart';
+import '../widgets/mb_feedback.dart';
 
 /// Màn hình Nhận tiền vào hũ (chuẩn phong cách MB Bank)
 class ReceiveMoneyScreen extends StatefulWidget {
@@ -61,6 +62,14 @@ class _ReceiveMoneyScreenState extends State<ReceiveMoneyScreen> {
   }
 
   Future<void> _loadInitialData() async {
+    if (_monedaService.hasHomeCache) {
+      _settings = AppSettings.fromJson(MonedaService.cachedSettings!);
+      _jars = {
+        for (var e in MonedaService.cachedJars!)
+          (e['jar_type'] as String).toUpperCase(): Jar.fromJson(e)
+      };
+      _isLoading = false;
+    }
     try {
       final results = await Future.wait([
         _monedaService.getAppSettings(),
@@ -102,95 +111,106 @@ class _ReceiveMoneyScreenState extends State<ReceiveMoneyScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header Bottom Sheet
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Chọn hũ nhận tiền',
-                        style: TextStyle(
-                          color: AppColors.textDark,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
+            return FractionallySizedBox(
+              heightFactor: 0.78,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header Bottom Sheet
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Chọn hũ nhận tiền',
+                          style: TextStyle(
+                            color: AppColors.textDark,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: AppColors.textMuted,
+                            size: 22,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(color: AppColors.borderGray, height: 16),
+                    const SizedBox(height: 8),
+
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            // Option 1: ALL_SPLIT
+                            _buildJarRadioOption(
+                              value: 'ALL_SPLIT',
+                              title: 'Chia đều theo tỷ lệ ($needRatio/$wantRatio/$saveRatio)',
+                              subtitle: 'Tự động phân bổ vào cả 3 hũ',
+                              isSelected: _selectedJar == 'ALL_SPLIT',
+                              onTap: () {
+                                setState(() => _selectedJar = 'ALL_SPLIT');
+                                Navigator.pop(context);
+                              },
+                            ),
+
+                            // Option 2: NEED
+                            _buildJarRadioOption(
+                              value: 'NEED',
+                              title: 'Chỉ vào Hũ NEED ($needRatio%)',
+                              subtitle:
+                                  'Số dư: ${CurrencyFormatter.format(needBalance)}',
+                              isSelected: _selectedJar == 'NEED',
+                              onTap: () {
+                                setState(() => _selectedJar = 'NEED');
+                                Navigator.pop(context);
+                              },
+                            ),
+
+                            // Option 3: WANT
+                            _buildJarRadioOption(
+                              value: 'WANT',
+                              title: 'Chỉ vào Hũ WANT ($wantRatio%)',
+                              subtitle:
+                                  'Số dư: ${CurrencyFormatter.format(wantBalance)}',
+                              isSelected: _selectedJar == 'WANT',
+                              onTap: () {
+                                setState(() => _selectedJar = 'WANT');
+                                Navigator.pop(context);
+                              },
+                            ),
+
+                            // Option 4: SAVE
+                            _buildJarRadioOption(
+                              value: 'SAVE',
+                              title: 'Chỉ vào Hũ SAVE ($saveRatio%)',
+                              subtitle:
+                                  'Số dư: ${CurrencyFormatter.format(saveBalance)}',
+                              isSelected: _selectedJar == 'SAVE',
+                              onTap: () {
+                                setState(() => _selectedJar = 'SAVE');
+                                Navigator.pop(context);
+                              },
+                            ),
+                          ],
                         ),
                       ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(
-                          Icons.close_rounded,
-                          color: AppColors.textMuted,
-                          size: 22,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Divider(color: AppColors.borderGray, height: 16),
-                  const SizedBox(height: 8),
-
-                  // Option 1: ALL_SPLIT
-                  _buildJarRadioOption(
-                    value: 'ALL_SPLIT',
-                    title: 'Chia đều theo tỷ lệ ($needRatio/$wantRatio/$saveRatio)',
-                    subtitle: 'Tự động phân bổ vào cả 3 hũ',
-                    isSelected: _selectedJar == 'ALL_SPLIT',
-                    onTap: () {
-                      setState(() => _selectedJar = 'ALL_SPLIT');
-                      Navigator.pop(context);
-                    },
-                  ),
-
-                  // Option 2: NEED
-                  _buildJarRadioOption(
-                    value: 'NEED',
-                    title: 'Chỉ vào Hũ NEED ($needRatio%)',
-                    subtitle:
-                        'Số dư: ${CurrencyFormatter.format(needBalance)}',
-                    isSelected: _selectedJar == 'NEED',
-                    onTap: () {
-                      setState(() => _selectedJar = 'NEED');
-                      Navigator.pop(context);
-                    },
-                  ),
-
-                  // Option 3: WANT
-                  _buildJarRadioOption(
-                    value: 'WANT',
-                    title: 'Chỉ vào Hũ WANT ($wantRatio%)',
-                    subtitle:
-                        'Số dư: ${CurrencyFormatter.format(wantBalance)}',
-                    isSelected: _selectedJar == 'WANT',
-                    onTap: () {
-                      setState(() => _selectedJar = 'WANT');
-                      Navigator.pop(context);
-                    },
-                  ),
-
-                  // Option 4: SAVE
-                  _buildJarRadioOption(
-                    value: 'SAVE',
-                    title: 'Chỉ vào Hũ SAVE ($saveRatio%)',
-                    subtitle:
-                        'Số dư: ${CurrencyFormatter.format(saveBalance)}',
-                    isSelected: _selectedJar == 'SAVE',
-                    onTap: () {
-                      setState(() => _selectedJar = 'SAVE');
-                      Navigator.pop(context);
-                    },
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -273,11 +293,9 @@ class _ReceiveMoneyScreenState extends State<ReceiveMoneyScreen> {
       _showSuccessDialog(amount: amount, sourceName: sourceName);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi khi nhận tiền: $e'),
-          backgroundColor: AppColors.errorRed,
-        ),
+      showMbTopToast(
+        context,
+        'Lỗi khi nhận tiền: $e',
       );
     } finally {
       if (mounted) {

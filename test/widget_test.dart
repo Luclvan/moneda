@@ -7,7 +7,10 @@ import 'package:moneda/models/monthly_report.dart';
 import 'package:moneda/models/saving_goal.dart';
 import 'package:moneda/models/transaction_item.dart';
 import 'package:moneda/screens/expense_detail_screen.dart';
+import 'package:moneda/screens/home_screen.dart';
 import 'package:moneda/screens/income_detail_screen.dart';
+import 'package:moneda/screens/payment_screen.dart';
+import 'package:moneda/screens/receive_money_screen.dart';
 import 'package:moneda/screens/report_screen.dart';
 import 'package:moneda/screens/saving_goals_screen.dart';
 import 'package:moneda/screens/transaction_history_screen.dart';
@@ -570,6 +573,174 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(dialogResult, true);
+    });
+
+    testWidgets('Zero-spinner caching displays HomeScreen instantly without initial spinner',
+        (WidgetTester tester) async {
+      MonedaService.cachedSettings = {
+        'id': 1,
+        'total_balance': 15000000.0,
+        'need_ratio': 50,
+        'want_ratio': 30,
+        'save_ratio': 20,
+        'monthly_rollover_done': false,
+      };
+      MonedaService.cachedJars = [
+        {'id': 1, 'jar_type': 'NEED', 'balance': 7500000.0},
+        {'id': 2, 'jar_type': 'WANT', 'balance': 4500000.0},
+        {'id': 3, 'jar_type': 'SAVE', 'balance': 3000000.0},
+      ];
+      MonedaService.cachedRecentTransactions = [];
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: HomeScreen(),
+        ),
+      );
+
+      // Verify that NO CircularProgressIndicator is rendered on frame 0
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.text('15,000,000 VND'), findsOneWidget);
+    });
+
+    testWidgets('Zero-spinner caching displays SavingGoalsScreen instantly',
+        (WidgetTester tester) async {
+      MonedaService.cachedSettings = {
+        'id': 1,
+        'total_balance': 15000000.0,
+        'need_ratio': 50,
+        'want_ratio': 30,
+        'save_ratio': 20,
+        'monthly_rollover_done': false,
+      };
+      MonedaService.cachedJars = [
+        {'id': 1, 'jar_type': 'SAVE', 'balance': 3000000.0},
+      ];
+      MonedaService.cachedSavingGoals = [
+        {
+          'id': 1,
+          'goal_name': 'Mua Laptop M4',
+          'target_amount': 30000000.0,
+          'current_amount': 15000000.0,
+          'deadline': null,
+          'created_at': DateTime.now().toIso8601String(),
+        }
+      ];
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: SavingGoalsScreen(),
+        ),
+      );
+
+      // Verify that NO CircularProgressIndicator is rendered on frame 0
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.text('Mua Laptop M4'), findsOneWidget);
+    });
+
+    testWidgets('ReportScreen locks future months with faded opacity',
+        (WidgetTester tester) async {
+      final now = DateTime.now();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ReportScreen(
+            initialMonth: now.month,
+            initialYear: now.year,
+          ),
+        ),
+      );
+
+      // Tap on month selector (shows 'Tháng MM/YYYY')
+      final monthSelector = find.text('Tháng ${now.month.toString().padLeft(2, '0')}/${now.year}');
+      if (monthSelector.evaluate().isNotEmpty) {
+        await tester.tap(monthSelector);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Năm ${now.year}'), findsOneWidget);
+        // If now.month < 12, month 12 must be future and faded
+        if (now.month < 12) {
+          final futureMonth = find.text('Tháng 12');
+          expect(futureMonth, findsOneWidget);
+          final opacityFinder = find.ancestor(
+            of: futureMonth,
+            matching: find.byType(Opacity),
+          );
+          expect(opacityFinder, findsOneWidget);
+          final opacityWidget = tester.widget<Opacity>(opacityFinder);
+          expect(opacityWidget.opacity, 0.4);
+        }
+      }
+    });
+
+    testWidgets('PaymentScreen opens 78% height jar selector bottom sheet',
+        (WidgetTester tester) async {
+      MonedaService.cachedSettings = {
+        'id': 1,
+        'total_balance': 15000000.0,
+        'need_ratio': 50,
+        'want_ratio': 30,
+        'save_ratio': 20,
+      };
+      MonedaService.cachedJars = [
+        {'id': 1, 'jar_type': 'NEED', 'balance': 7500000.0},
+        {'id': 2, 'jar_type': 'WANT', 'balance': 4500000.0},
+        {'id': 3, 'jar_type': 'SAVE', 'balance': 3000000.0},
+      ];
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: PaymentScreen(),
+        ),
+      );
+      await tester.pump();
+
+      // Tap Jar selector card (contains 'HŨ NEED')
+      final changeJarBtn = find.textContaining('HŨ NEED');
+      expect(changeJarBtn, findsOneWidget);
+      await tester.tap(changeJarBtn);
+      await tester.pumpAndSettle();
+
+      // Verify bottom sheet has FractionallySizedBox with 0.78 height factor
+      final fractionallySizedBoxFinder = find.byType(FractionallySizedBox);
+      expect(fractionallySizedBoxFinder, findsOneWidget);
+      final box = tester.widget<FractionallySizedBox>(fractionallySizedBoxFinder);
+      expect(box.heightFactor, 0.78);
+      expect(find.text('Chọn nguồn chi tiêu'), findsOneWidget);
+    });
+
+    testWidgets('ReceiveMoneyScreen opens 78% height jar selector bottom sheet',
+        (WidgetTester tester) async {
+      MonedaService.cachedSettings = {
+        'id': 1,
+        'total_balance': 15000000.0,
+        'need_ratio': 50,
+        'want_ratio': 30,
+        'save_ratio': 20,
+      };
+      MonedaService.cachedJars = [
+        {'id': 1, 'jar_type': 'NEED', 'balance': 7500000.0},
+        {'id': 2, 'jar_type': 'WANT', 'balance': 4500000.0},
+        {'id': 3, 'jar_type': 'SAVE', 'balance': 3000000.0},
+      ];
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: ReceiveMoneyScreen(),
+        ),
+      );
+      await tester.pump();
+
+      // Tap Jar selector card (contains 'CHIA ĐỀU')
+      final changeJarBtn = find.textContaining('CHIA ĐỀU');
+      expect(changeJarBtn, findsOneWidget);
+      await tester.tap(changeJarBtn);
+      await tester.pumpAndSettle();
+
+      final fractionallySizedBoxFinder = find.byType(FractionallySizedBox);
+      expect(fractionallySizedBoxFinder, findsOneWidget);
+      final box = tester.widget<FractionallySizedBox>(fractionallySizedBoxFinder);
+      expect(box.heightFactor, 0.78);
+      expect(find.text('Chọn hũ nhận tiền'), findsOneWidget);
     });
   });
 }

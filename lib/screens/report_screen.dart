@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../core/constants/app_colors.dart';
 import '../core/utils/currency_formatter.dart';
+import '../models/app_settings.dart';
 import '../models/monthly_report.dart';
 import '../services/moneda_service.dart';
+import '../widgets/mb_feedback.dart';
 import '../widgets/moneda_bottom_bar.dart';
 import 'payment_screen.dart';
 import 'receive_money_screen.dart';
@@ -46,13 +48,68 @@ class _ReportScreenState extends State<ReportScreen> {
     _selectedMonth = widget.initialMonth ?? now.month;
     _selectedYear = widget.initialYear ?? now.year;
 
+    final monthKey = DateFormat('yyyy-MM').format(DateTime(_selectedYear, _selectedMonth, 1));
+    if (_monedaService.hasMonthlyReportCache(monthKey) && MonedaService.cachedSettings != null) {
+      final cache = MonedaService.cachedMonthlyReports[monthKey]!;
+      final settings = AppSettings.fromJson(MonedaService.cachedSettings!);
+      final monthlyIncome = (cache['monthly_income'] as num?)?.toDouble() ?? 0.0;
+      final allExpenses = List<Map<String, dynamic>>.from(cache['all_expenses'] as List? ?? []);
+      final jarRatios = {
+        'NEED': settings.needRatio,
+        'WANT': settings.wantRatio,
+        'SAVE': settings.saveRatio,
+      };
+      final Map<String, JarReport> jarsMap = {};
+      for (final jarType in ['NEED', 'WANT', 'SAVE']) {
+        final ratio = jarRatios[jarType] ?? 0;
+        final jarExpenses = allExpenses
+            .where((e) =>
+                (e['jar_type'] as String? ?? '').toUpperCase() == jarType)
+            .toList();
+        final actualAmount = jarExpenses.fold<double>(
+          0.0,
+          (sum, e) => sum + ((e['amount'] as num?)?.toDouble() ?? 0.0),
+        );
+        final targetAmount =
+            monthlyIncome > 0 ? monthlyIncome * (ratio / 100.0) : 0.0;
+        final actualPercent =
+            monthlyIncome > 0 ? (actualAmount / monthlyIncome) * 100.0 : 0.0;
+        jarsMap[jarType] = JarReport(
+          jarType: jarType,
+          ratio: ratio,
+          targetAmount: targetAmount,
+          actualAmount: actualAmount,
+          actualPercent: actualPercent,
+          expenses: jarExpenses,
+        );
+      }
+      _reportData = MonthlyReportData(
+        month: _selectedMonth,
+        year: _selectedYear,
+        monthlyIncome: monthlyIncome,
+        jars: jarsMap,
+        allExpenses: allExpenses,
+      );
+      _isLoading = false;
+
+      final currentJarExpenses = _reportData?.jars[_selectedJarType]?.expenses ?? const [];
+      if (currentJarExpenses.isNotEmpty && _expandedCategories.isEmpty) {
+        final firstCat = (currentJarExpenses.first['category'] as String?)?.trim();
+        if (firstCat != null && firstCat.isNotEmpty) {
+          _expandedCategories.add(firstCat);
+        }
+      }
+    }
+
     _loadReport();
   }
 
   Future<void> _loadReport() async {
-    setState(() {
-      _isLoading = true;
-    });
+    if (_reportData == null) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     try {
       final data = await _monedaService.getMonthlyReport(
@@ -85,14 +142,18 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 
   Future<void> _showMonthYearPicker() async {
+    final now = DateTime.now();
     int tempMonth = _selectedMonth;
-    int tempYear = _selectedYear;
+    int tempYear = _selectedYear > now.year ? now.year : _selectedYear;
 
     final result = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final isCurrentYear = tempYear == now.year;
+            final canGoNextYear = tempYear < now.year;
+
             return AlertDialog(
               backgroundColor: AppColors.white,
               shape: RoundedRectangleBorder(
@@ -124,16 +185,25 @@ class _ReportScreenState extends State<ReportScreen> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.chevron_right_rounded,
-                      color: AppColors.primaryBlue,
+                      color: canGoNextYear
+                          ? AppColors.primaryBlue
+                          : AppColors.borderGray,
                       size: 28,
                     ),
-                    onPressed: () {
-                      setDialogState(() {
-                        tempYear++;
-                      });
-                    },
+                    onPressed: canGoNextYear
+                        ? () {
+                            setDialogState(() {
+                              if (tempYear < now.year) {
+                                tempYear++;
+                                if (tempYear == now.year && tempMonth > now.month) {
+                                  tempMonth = now.month;
+                                }
+                              }
+                            });
+                          }
+                        : null,
                   ),
                 ],
               ),
@@ -151,8 +221,46 @@ class _ReportScreenState extends State<ReportScreen> {
                   ),
                   itemBuilder: (context, index) {
                     final monthNumber = index + 1;
+                    final isFuture = isCurrentYear && monthNumber > now.month;
                     final isSelected =
                         tempMonth == monthNumber && tempYear == _selectedYear;
+
+                    final itemWidget = Container(
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.primaryBlue
+                            : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppColors.primaryBlue
+                              : AppColors.borderGray,
+                          width: 1,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        'Tháng $monthNumber',
+                        style: TextStyle(
+                          color: isSelected
+                              ? AppColors.white
+                              : (isFuture
+                                  ? const Color(0xFF94A3B8)
+                                  : AppColors.textDark),
+                          fontSize: 13,
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    );
+
+                    if (isFuture) {
+                      return Opacity(
+                        opacity: 0.4,
+                        child: itemWidget,
+                      );
+                    }
 
                     return InkWell(
                       onTap: () {
@@ -161,33 +269,7 @@ class _ReportScreenState extends State<ReportScreen> {
                         });
                       },
                       borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.primaryBlue
-                              : AppColors.backgroundGray,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isSelected
-                                ? AppColors.primaryBlue
-                                : AppColors.borderGray,
-                            width: 1,
-                          ),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          'Tháng $monthNumber',
-                          style: TextStyle(
-                            color: isSelected
-                                ? AppColors.white
-                                : AppColors.textDark,
-                            fontSize: 13,
-                            fontWeight: isSelected
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                          ),
-                        ),
-                      ),
+                      child: itemWidget,
                     );
                   },
                 ),
@@ -236,86 +318,23 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 
   Future<void> _handleDeleteExpense(Map<String, dynamic> expense) async {
-    final title = expense['title'] ?? 'Khoản chi tiêu';
-    final amount = (expense['amount'] as num?)?.toDouble() ?? 0.0;
-    final jarType = (expense['jar_type'] as String? ?? 'NEED').toUpperCase();
-
-    final confirm = await showDialog<bool>(
+    final confirm = await showMbDeleteConfirmDialog(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: AppColors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            'Xác nhận xóa chi tiêu',
-            style: TextStyle(
-              color: AppColors.textDark,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          content: Text(
-            'Bạn có chắc chắn muốn xóa giao dịch "$title" với số tiền ${CurrencyFormatter.format(amount)}?\nSố tiền sẽ được hoàn trả lại vào hũ $jarType.',
-            style: const TextStyle(
-              color: AppColors.textDark,
-              fontSize: 13.5,
-              height: 1.45,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text(
-                'Hủy',
-                style: TextStyle(
-                  color: AppColors.textMuted,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.errorRed,
-                foregroundColor: AppColors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Text(
-                'Xóa',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        );
-      },
+      title: 'Xoá giao dịch hiện tại',
+      message:
+          'Khi xoá, số tiền của giao dịch này sẽ được tự động hoàn trả / thu hồi chính xác ở các hũ liên quan.',
+      confirmText: 'Xoá giao dịch',
     );
 
     if (confirm == true) {
       try {
         await _monedaService.deleteExpense(expense);
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Đã xóa giao dịch và hoàn trả tiền vào hũ thành công.',
-            ),
-            backgroundColor: AppColors.successGreen,
-          ),
-        );
+        showMbTopToast(context, 'Đã xoá giao dịch thành công');
         _loadReport();
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi xóa chi tiêu: $e'),
-            backgroundColor: AppColors.errorRed,
-          ),
-        );
+        showMbTopToast(context, 'Lỗi khi xóa chi tiêu: $e');
       }
     }
   }
