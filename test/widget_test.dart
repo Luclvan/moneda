@@ -4,10 +4,12 @@ import 'package:moneda/core/utils/currency_formatter.dart';
 import 'package:moneda/models/app_settings.dart';
 import 'package:moneda/models/jar.dart';
 import 'package:moneda/models/monthly_report.dart';
+import 'package:moneda/models/saving_goal.dart';
 import 'package:moneda/models/transaction_item.dart';
 import 'package:moneda/screens/expense_detail_screen.dart';
 import 'package:moneda/screens/income_detail_screen.dart';
 import 'package:moneda/screens/report_screen.dart';
+import 'package:moneda/screens/saving_goals_screen.dart';
 import 'package:moneda/screens/transaction_history_screen.dart';
 import 'package:moneda/widgets/moneda_bottom_bar.dart';
 import 'package:moneda/widgets/quick_actions_grid.dart';
@@ -387,6 +389,61 @@ void main() {
       expect(find.text('Tổng thu nhập trong tháng'), findsOneWidget);
       expect(find.text('Nhận tiền'), findsOneWidget);
       expect(find.text('Truy vấn giao dịch'), findsOneWidget);
+    });
+
+    test('SavingGoal model calculations and JSON serialization', () {
+      final goal = SavingGoal(
+        id: 1,
+        goalName: 'Mua MacBook Pro M3',
+        targetAmount: 30000000,
+        currentAmount: 15000000,
+        deadline: DateTime(2026, 12, 31),
+        createdAt: DateTime(2026, 10, 1),
+      );
+
+      expect(goal.id, 1);
+      expect(goal.goalName, 'Mua MacBook Pro M3');
+      expect(goal.targetAmount, 30000000.0);
+      expect(goal.currentAmount, 15000000.0);
+      expect(goal.progress, 0.5);
+      expect(goal.progressPercent, 50);
+      expect(goal.formattedDeadline, '31/12/2026');
+      expect(goal.isCompleted, false);
+
+      final json = goal.toJson();
+      expect(json['id'], 1);
+      expect(json['goal_name'], 'Mua MacBook Pro M3');
+
+      final fromJson = SavingGoal.fromJson(json);
+      expect(fromJson.id, 1);
+      expect(fromJson.goalName, 'Mua MacBook Pro M3');
+      expect(fromJson.targetAmount, 30000000.0);
+      expect(fromJson.currentAmount, 15000000.0);
+    });
+
+    testWidgets('SavingGoalsScreen renders cards and bottom bar without crash',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: SavingGoalsScreen(),
+        ),
+      );
+      await tester.pump();
+
+      // Top AppBar
+      expect(find.text('Mục tiêu tiết kiệm'), findsOneWidget);
+      expect(find.byIcon(Icons.add_rounded), findsOneWidget);
+
+      // Khối 1: Nguồn tích lũy Hũ SAVE & Nút chuyển vào mục tiêu
+      expect(find.textContaining('Nguồn tích lũy: HŨ SAVE'), findsOneWidget);
+      expect(find.text('Chuyển vào mục tiêu'), findsOneWidget);
+
+      // Khối 2: Tiêu đề danh sách mục tiêu
+      expect(find.text('Danh sách mục tiêu'), findsOneWidget);
+      expect(find.text('+ Thêm mới'), findsOneWidget);
+
+      // Bottom Bar có nhãn Mục tiêu
+      expect(find.text('Mục tiêu'), findsOneWidget);
     });
   });
 }

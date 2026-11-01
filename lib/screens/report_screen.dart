@@ -7,6 +7,7 @@ import '../services/moneda_service.dart';
 import '../widgets/moneda_bottom_bar.dart';
 import 'payment_screen.dart';
 import 'receive_money_screen.dart';
+import 'saving_goals_screen.dart';
 
 /// Màn hình Báo cáo & Sao kê (Kịch bản 6: Budget Worksheet 3 tầng có Accordion)
 class ReportScreen extends StatefulWidget {
@@ -344,6 +345,18 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
+  void _navigateToSavingGoals() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SavingGoalsScreen(),
+      ),
+    );
+    if (mounted) {
+      _loadReport();
+    }
+  }
+
   IconData _getCategoryIcon(String category) {
     final cat = category.toLowerCase();
     if (cat.contains('ăn') ||
@@ -470,16 +483,7 @@ class _ReportScreenState extends State<ReportScreen> {
         },
         onPaymentTap: _navigateToPayment,
         onReceiveTap: _navigateToReceiveMoney,
-        onGoalsTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content:
-                  Text('Tính năng Mục tiêu tiết kiệm đang được phát triển.'),
-              backgroundColor: AppColors.primaryBlue,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        },
+        onGoalsTap: _navigateToSavingGoals,
       ),
 
       body: RefreshIndicator(
