@@ -12,6 +12,7 @@ import 'package:moneda/screens/income_detail_screen.dart';
 import 'package:moneda/screens/payment_screen.dart';
 import 'package:moneda/screens/receive_money_screen.dart';
 import 'package:moneda/screens/report_screen.dart';
+import 'package:moneda/screens/rollover_transfer_screen.dart';
 import 'package:moneda/screens/saving_goals_screen.dart';
 import 'package:moneda/screens/transaction_history_screen.dart';
 import 'package:moneda/services/moneda_service.dart';
@@ -782,6 +783,195 @@ void main() {
         find.widgetWithText(ElevatedButton, 'Tiếp tục'),
       );
       expect(continueButton.onPressed, isNull);
+    });
+
+    testWidgets('RolloverTransferScreen renders with cached jars and toggles selection',
+        (WidgetTester tester) async {
+      MonedaService.cachedSettings = {
+        'id': 1,
+        'total_balance': 3500000.0,
+        'need_ratio': 50,
+        'want_ratio': 30,
+        'save_ratio': 20,
+      };
+      MonedaService.cachedJars = [
+        {'id': 1, 'jar_type': 'NEED', 'balance': 2000000.0},
+        {'id': 2, 'jar_type': 'WANT', 'balance': 1000000.0},
+        {'id': 3, 'jar_type': 'SAVE', 'balance': 500000.0},
+      ];
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: RolloverTransferScreen(),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Kết chuyển sang Hũ Save'), findsOneWidget);
+      expect(find.text('Bạn có muốn chuyển hết tiền dư của hũ nào sang Save?'), findsOneWidget);
+      expect(find.text('Chọn tất cả các hũ'), findsOneWidget);
+      expect(find.text('3,000,000 VND'), findsWidgets);
+
+      // Tap "Chọn tất cả các hũ" to unselect all
+      await tester.tap(find.text('Chọn tất cả các hũ'));
+      await tester.pump();
+
+      // When unselected, summary card is hidden and submit is disabled
+      expect(find.text('Tổng tiền sẽ chuyển sang Hũ SAVE:'), findsNothing);
+      final transferButton = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Chuyển sang Save'),
+      );
+      expect(transferButton.onPressed, isNull);
+
+      // Tap Hũ NEED card to re-select
+      await tester.tap(find.textContaining('Hũ NEED'));
+      await tester.pump();
+
+      expect(find.text('Tổng tiền sẽ chuyển sang Hũ SAVE:'), findsOneWidget);
+      expect(find.text('2,000,000 VND'), findsWidgets);
+      final enabledButton = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Chuyển sang Save'),
+      );
+      expect(enabledButton.onPressed, isNotNull);
+
+      // Tap Chuyển sang Save to open confirmation dialog
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Chuyển sang Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Xác nhận chuyển sang Save'), findsOneWidget);
+      // Tap Để sau to close dialog
+      await tester.tap(find.text('Để sau'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Xác nhận chuyển sang Save'), findsNothing);
+    });
+
+    testWidgets('HomeScreen bell icon button opens RolloverTransferScreen',
+        (WidgetTester tester) async {
+      MonedaService.cachedSettings = {
+        'id': 1,
+        'total_balance': 15000000.0,
+        'need_ratio': 50,
+        'want_ratio': 30,
+        'save_ratio': 20,
+      };
+      MonedaService.cachedJars = [
+        {'id': 1, 'jar_type': 'NEED', 'balance': 7500000.0},
+        {'id': 2, 'jar_type': 'WANT', 'balance': 4500000.0},
+        {'id': 3, 'jar_type': 'SAVE', 'balance': 3000000.0},
+      ];
+      MonedaService.cachedRecentTransactions = [];
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: HomeScreen(),
+        ),
+      );
+      await tester.pump();
+
+      final bellBtn = find.byIcon(Icons.notifications_none_rounded);
+      expect(bellBtn, findsOneWidget);
+      await tester.tap(bellBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RolloverTransferScreen), findsOneWidget);
+      expect(find.text('Kết chuyển sang Hũ Save'), findsOneWidget);
+    });
+
+    testWidgets('SavingGoalsScreen withdraw dialog opens 78% jar bottom sheet and validates amount',
+        (WidgetTester tester) async {
+      MonedaService.cachedSettings = {
+        'id': 1,
+        'total_balance': 15000000.0,
+        'need_ratio': 50,
+        'want_ratio': 30,
+        'save_ratio': 20,
+      };
+      MonedaService.cachedJars = [
+        {'id': 1, 'jar_type': 'NEED', 'balance': 7500000.0},
+        {'id': 2, 'jar_type': 'WANT', 'balance': 4500000.0},
+        {'id': 3, 'jar_type': 'SAVE', 'balance': 3000000.0},
+      ];
+      MonedaService.cachedSavingGoals = [
+        {
+          'id': 1,
+          'goal_name': 'Mua xe máy mới',
+          'target_amount': 40000000.0,
+          'current_amount': 5000000.0,
+          'deadline': '2026-12-31T00:00:00Z',
+          'created_at': '2026-01-01T00:00:00Z',
+        }
+      ];
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: SavingGoalsScreen(),
+        ),
+      );
+      await tester.pump();
+
+      // Find "Rút ra hũ" button
+      final withdrawBtn = find.text('Rút ra hũ');
+      expect(withdrawBtn, findsOneWidget);
+      await tester.tap(withdrawBtn);
+      await tester.pumpAndSettle();
+
+      // Verify withdraw dialog is shown
+      expect(find.text('Rút tiền từ mục tiêu'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(Dialog),
+          matching: find.text('Mua xe máy mới'),
+        ),
+        findsOneWidget,
+      );
+
+      // Tap jar selector card (contains 'Hũ SAVE')
+      final jarSelector = find.textContaining('Hũ SAVE');
+      expect(jarSelector, findsOneWidget);
+      await tester.tap(jarSelector);
+      await tester.pumpAndSettle();
+
+      // Verify 78% bottom sheet is opened
+      final fractionallySizedBoxFinder = find.byType(FractionallySizedBox);
+      expect(fractionallySizedBoxFinder, findsOneWidget);
+      final box = tester.widget<FractionallySizedBox>(fractionallySizedBoxFinder);
+      expect(box.heightFactor, 0.78);
+      expect(find.text('Chọn hũ nhận tiền'), findsOneWidget);
+
+      // Select 'Hũ NEED' from the list
+      await tester.tap(find.textContaining('Hũ NEED'));
+      await tester.pumpAndSettle();
+
+      // Dialog remains open with Hũ NEED selected
+      expect(find.textContaining('Hũ NEED'), findsOneWidget);
+
+      // Enter amount exceeding 5,000,000 VND
+      final amountField = find.byType(TextField);
+      await tester.enterText(amountField, '10,000,000');
+      await tester.pump();
+
+      // Verify error warning
+      expect(find.text('Vượt quá số tiền đang có trong mục tiêu'), findsOneWidget);
+
+      // Verify submit button is disabled
+      final submitBtn = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Xác nhận rút'),
+      );
+      expect(submitBtn.onPressed, isNull);
+
+      // Tap quick chip '+500k'
+      await tester.tap(find.text('+500k'));
+      await tester.pump();
+
+      // Warning disappears
+      expect(find.text('Vượt quá số tiền đang có trong mục tiêu'), findsNothing);
+
+      // Submit button becomes enabled
+      final enabledSubmitBtn = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Xác nhận rút'),
+      );
+      expect(enabledSubmitBtn.onPressed, isNotNull);
     });
   });
 }
