@@ -6,15 +6,14 @@ import '../models/transaction_item.dart';
 import '../services/moneda_service.dart';
 import '../widgets/balance_carousel.dart';
 import '../widgets/jars_allocation_card.dart';
-import '../widgets/mb_feedback.dart';
 import '../widgets/moneda_bottom_bar.dart';
 import '../widgets/quick_actions_grid.dart';
 import '../widgets/recent_transactions_card.dart';
-import '../widgets/rollover_alert_banner.dart';
 import '../widgets/settings_modal.dart';
 import 'payment_screen.dart';
 import 'receive_money_screen.dart';
 import 'report_screen.dart';
+import 'rollover_transfer_screen.dart';
 import 'saving_goals_screen.dart';
 import 'transaction_history_screen.dart';
 
@@ -30,8 +29,6 @@ class _HomeScreenState extends State<HomeScreen> {
   final MonedaService _monedaService = MonedaService();
 
   bool _isLoading = true;
-  bool _isRolloverLoading = false;
-  bool _isRolloverDismissed = false;
   String? _errorMessage;
 
   // Trạng thái ẩn/hiện số dư (mặc định hiện số dư)
@@ -91,47 +88,16 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// Xử lý quyết toán đầu tháng
-  Future<void> _handleRollover({required bool transferToSave}) async {
-    if (!transferToSave) {
-      // Giữ nguyên số tiền ở từng hũ và giữ lại thông báo để chuyển sau
-      showMbTopToast(
-        context,
-        'Đã giữ lại số dư từng hũ. Bạn có thể chuyển sang Save bất cứ lúc nào trong tháng.',
-      );
-      return;
+  Future<void> _openRolloverTransferScreen() async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const RolloverTransferScreen(),
+      ),
+    );
+    if (result == true && mounted) {
+      _loadDashboardData();
     }
-
-    setState(() {
-      _isRolloverLoading = true;
-    });
-
-    try {
-      await _monedaService.executeMonthlyRollover();
-      await _loadDashboardData();
-
-      if (!mounted) return;
-      showMbTopToast(
-        context,
-        'Đã chuyển toàn bộ số dư thặng dư sang hũ Save thành công!',
-      );
-    } catch (e) {
-      if (!mounted) return;
-      showMbTopToast(
-        context,
-        'Lỗi khi quyết toán: $e',
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isRolloverLoading = false;
-        });
-      }
-    }
-  }
-
-  void _onPlaceholderAction(String title) {
-    debugPrint('Tapped action: $title');
   }
 
   Future<void> _openSettingsModal({int initialTab = 0}) async {
@@ -255,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           _buildCircleButton(
             icon: Icons.notifications_none_rounded,
-            onTap: () => _onPlaceholderAction('Thông báo'),
+            onTap: _openRolloverTransferScreen,
           ),
           const SizedBox(width: 8),
           _buildCircleButton(
@@ -338,12 +304,6 @@ class _HomeScreenState extends State<HomeScreen> {
           saveRatio: 20,
         );
 
-    final dashboardData = HomeDashboardData(
-      settings: settings,
-      jars: _jars,
-      recentTransactions: _recentTransactions,
-    );
-
     return RefreshIndicator(
       color: AppColors.primaryBlue,
       backgroundColor: AppColors.white,
@@ -363,21 +323,6 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Banner nhắc nhở quyết toán đầu tháng (nếu cần)
-                  if (dashboardData.needsRolloverReminder &&
-                      !_isRolloverDismissed)
-                    RolloverAlertBanner(
-                      onTransferToSave: () =>
-                          _handleRollover(transferToSave: true),
-                      onKeepJars: () => _handleRollover(transferToSave: false),
-                      onDismiss: () {
-                        setState(() {
-                          _isRolloverDismissed = true;
-                        });
-                      },
-                      isLoading: _isRolloverLoading,
-                    ),
-
                   // Avatar & Thẻ số dư PageView trượt ngang
                   BalanceCarousel(
                     settings: settings,

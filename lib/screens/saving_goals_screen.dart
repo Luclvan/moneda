@@ -158,6 +158,38 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
     }
   }
 
+  /// Mở Modal Rút tiền từ Mục tiêu về Hũ
+  Future<void> _openWithdrawModal({required SavingGoal goal}) async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return _WithdrawFromGoalDialog(
+          goal: goal,
+          jars: _jars,
+          settings: _settings,
+          onWithdraw: (targetJarType, amount) async {
+            await _monedaService.withdrawFromGoalToJar(
+              goal: goal.toJson(),
+              targetJarType: targetJarType,
+              amount: amount,
+            );
+          },
+        );
+      },
+    );
+
+    if (result != null && mounted) {
+      final amount = result['amount'] as double;
+      final jarName = result['jarName'] as String;
+      showMbTopToast(
+        context,
+        'Đã chuyển ${CurrencyFormatter.format(amount)} từ mục tiêu về Hũ $jarName',
+      );
+      _loadData();
+    }
+  }
+
   /// Xác nhận xóa mục tiêu
   Future<void> _handleDeleteGoal(SavingGoal goal) async {
     final hasSavings = goal.currentAmount > 0;
@@ -647,9 +679,12 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
 
           const SizedBox(height: 14),
 
-          // Hàng 4: 3 nút nhỏ căn phải (Nạp thêm, Sửa, Xóa)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          // Hàng 4: 4 nút nhỏ căn phải (Nạp thêm, Rút ra hũ, Sửa, Xóa)
+          Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 6,
+            runSpacing: 6,
             children: [
               // Nút 1: Nạp thêm
               OutlinedButton.icon(
@@ -675,7 +710,7 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                     width: 0.8,
                   ),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
+                    horizontal: 8,
                     vertical: 6,
                   ),
                   minimumSize: Size.zero,
@@ -686,9 +721,56 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                 ),
               ),
 
-              const SizedBox(width: 8),
+              // Nút 2: Rút ra hũ
+              Builder(
+                builder: (context) {
+                  final canWithdraw = goal.currentAmount > 0;
+                  final withdrawBtn = OutlinedButton.icon(
+                    onPressed: canWithdraw
+                        ? () => _openWithdrawModal(goal: goal)
+                        : null,
+                    icon: const Icon(
+                      Icons.outbox_rounded,
+                      size: 14,
+                      color: AppColors.primaryBlue,
+                    ),
+                    label: const Text(
+                      'Rút ra hũ',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryBlue,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: const Color(0xFFEFF6FF),
+                      side: const BorderSide(
+                        color: Color(0xFFBFDBFE),
+                        width: 0.8,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  );
 
-              // Nút 2: Sửa
+                  if (!canWithdraw) {
+                    return Opacity(
+                      opacity: 0.4,
+                      child: withdrawBtn,
+                    );
+                  }
+                  return withdrawBtn;
+                },
+              ),
+
+              // Nút 3: Sửa
               OutlinedButton.icon(
                 onPressed: () => _openAddOrEditGoalModal(goal: goal),
                 icon: const Icon(
@@ -711,7 +793,7 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                     width: 0.8,
                   ),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
+                    horizontal: 8,
                     vertical: 6,
                   ),
                   minimumSize: Size.zero,
@@ -722,9 +804,7 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                 ),
               ),
 
-              const SizedBox(width: 8),
-
-              // Nút 3: Xóa
+              // Nút 4: Xóa
               OutlinedButton.icon(
                 onPressed: () => _handleDeleteGoal(goal),
                 icon: const Icon(
@@ -747,7 +827,7 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
                     width: 0.8,
                   ),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
+                    horizontal: 8,
                     vertical: 6,
                   ),
                   minimumSize: Size.zero,
@@ -1198,11 +1278,10 @@ class _TransferToGoalDialogState extends State<_TransferToGoalDialog> {
       builder: (sheetContext) {
         return FractionallySizedBox(
           heightFactor: 0.78,
-          child: Container(
-            decoration: const BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            ),
+          child: Material(
+            color: AppColors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            clipBehavior: Clip.antiAlias,
             child: SafeArea(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1686,6 +1765,559 @@ class _TransferToGoalDialogState extends State<_TransferToGoalDialog> {
                           )
                         : const Text(
                             'Xác nhận chuyển',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickAmountChip(String label, double amount) {
+    return ActionChip(
+      label: Text(
+        '+$label',
+        style: const TextStyle(
+          fontSize: 11.5,
+          color: AppColors.textDark,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      backgroundColor: AppColors.backgroundGray,
+      side: const BorderSide(color: AppColors.borderGray),
+      padding: EdgeInsets.zero,
+      onPressed: () => _applyQuickAmount(amount),
+    );
+  }
+}
+
+/// Modal Rút tiền từ mục tiêu tiết kiệm về hũ
+class _WithdrawFromGoalDialog extends StatefulWidget {
+  final SavingGoal goal;
+  final Map<String, Jar> jars;
+  final AppSettings? settings;
+  final Future<void> Function(String targetJarType, double amount) onWithdraw;
+
+  const _WithdrawFromGoalDialog({
+    required this.goal,
+    required this.jars,
+    required this.settings,
+    required this.onWithdraw,
+  });
+
+  @override
+  State<_WithdrawFromGoalDialog> createState() =>
+      _WithdrawFromGoalDialogState();
+}
+
+class _WithdrawFromGoalDialogState extends State<_WithdrawFromGoalDialog> {
+  final TextEditingController _amountController = TextEditingController();
+
+  late String _selectedTargetJar;
+  bool _isSubmitting = false;
+
+  double get _amount =>
+      CurrencyFormatter.parseRawAmount(_amountController.text);
+
+  bool get _isExceeded => _amount > widget.goal.currentAmount;
+
+  bool get _canSubmit {
+    return _amount > 0 && !_isExceeded && widget.goal.currentAmount > 0;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedTargetJar = 'SAVE';
+    _amountController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  int _getJarRatio(String jarType) {
+    if (jarType == 'NEED') return widget.settings?.needRatio ?? 50;
+    if (jarType == 'WANT') return widget.settings?.wantRatio ?? 30;
+    return widget.settings?.saveRatio ?? 20;
+  }
+
+  double _getJarBalance(String jarType) {
+    return widget.jars[jarType]?.balance ?? 0.0;
+  }
+
+  String _getJarDisplayName(String jarType) {
+    if (jarType == 'NEED') return 'Hũ NEED (Thiết yếu)';
+    if (jarType == 'WANT') return 'Hũ WANT (Mong muốn)';
+    return 'Hũ SAVE (Tiết kiệm)';
+  }
+
+  /// Mở Modal Bottom Sheet chọn hũ nhận tiền (chiều cao 78%)
+  Future<void> _showSelectJarBottomSheet() async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return FractionallySizedBox(
+          heightFactor: 0.78,
+          child: Material(
+            color: AppColors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            clipBehavior: Clip.antiAlias,
+            child: SafeArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Chọn hũ nhận tiền',
+                          style: TextStyle(
+                            color: AppColors.textDark,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: AppColors.textMuted,
+                            size: 22,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1, color: AppColors.borderGray),
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      children: ['SAVE', 'NEED', 'WANT'].map((jarType) {
+                        final isSelected = _selectedTargetJar == jarType;
+                        final ratio = _getJarRatio(jarType);
+                        final balance = _getJarBalance(jarType);
+                        final name = _getJarDisplayName(jarType);
+
+                        return ListTile(
+                          onTap: () => Navigator.pop(sheetContext, jarType),
+                          leading: Icon(
+                            isSelected
+                                ? Icons.radio_button_checked_rounded
+                                : Icons.radio_button_off_rounded,
+                            color: isSelected
+                                ? AppColors.primaryBlue
+                                : AppColors.textMuted,
+                            size: 22,
+                          ),
+                          title: Text(
+                            '$name ($ratio%)',
+                            style: TextStyle(
+                              color: AppColors.textDark,
+                              fontSize: 14.5,
+                              fontWeight: isSelected
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'Số dư hiện tại: ${CurrencyFormatter.format(balance)}',
+                            style: const TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _selectedTargetJar = picked;
+      });
+    }
+  }
+
+  void _applyQuickAmount(double amount) {
+    final finalAmount = amount > widget.goal.currentAmount
+        ? widget.goal.currentAmount
+        : amount;
+    _amountController.text = CurrencyFormatter.format(finalAmount);
+  }
+
+  Future<void> _handleSubmit() async {
+    if (!_canSubmit || _isSubmitting) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      await widget.onWithdraw(_selectedTargetJar, _amount);
+      if (!mounted) return;
+      Navigator.pop(context, {
+        'amount': _amount,
+        'jarName': _selectedTargetJar,
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+      });
+      showMbTopToast(
+        context,
+        'Lỗi khi rút tiền: $e',
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: AppColors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Rút tiền từ mục tiêu',
+                  style: TextStyle(
+                    color: AppColors.primaryBlue,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                  color: AppColors.textMuted,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Trường 1: Nguồn tiền rút (Mục tiêu hiện tại)
+            const Text(
+              'Nguồn tiền rút',
+              style: TextStyle(
+                color: AppColors.textDark,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.backgroundGray,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.borderGray),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.borderGray),
+                    ),
+                    child: const Icon(
+                      Icons.flag_rounded,
+                      color: AppColors.primaryBlue,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.goal.goalName,
+                          style: const TextStyle(
+                            color: AppColors.textDark,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Số tiền đang tích lũy: ${CurrencyFormatter.format(widget.goal.currentAmount)}',
+                          style: const TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            // Trường 2: Hũ nhận tiền
+            const Text(
+              'Hũ nhận tiền',
+              style: TextStyle(
+                color: AppColors.textDark,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            InkWell(
+              onTap: _showSelectJarBottomSheet,
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppColors.borderGray,
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.account_balance_wallet_rounded,
+                        color: AppColors.secondaryBlue,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${_getJarDisplayName(_selectedTargetJar)} (${_getJarRatio(_selectedTargetJar)}%)',
+                            style: const TextStyle(
+                              color: AppColors.textDark,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Số dư hiện tại: ${CurrencyFormatter.format(_getJarBalance(_selectedTargetJar))}',
+                            style: const TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textMuted,
+                      size: 22,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            // Trường 3: Số tiền rút
+            const Text(
+              'Số tiền rút',
+              style: TextStyle(
+                color: AppColors.textDark,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _amountController,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              inputFormatters: [CurrencyInputFormatter()],
+              style: const TextStyle(
+                color: AppColors.primaryBlue,
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+              ),
+              decoration: InputDecoration(
+                hintText: '0 VND',
+                hintStyle: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                filled: true,
+                fillColor: AppColors.backgroundGray,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.borderGray),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.borderGray),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                    color: AppColors.primaryBlue,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+
+            // Các nút gợi ý số tiền nhanh
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildQuickAmountChip('50k', 50000),
+                  const SizedBox(width: 6),
+                  _buildQuickAmountChip('100k', 100000),
+                  const SizedBox(width: 6),
+                  _buildQuickAmountChip('200k', 200000),
+                  const SizedBox(width: 6),
+                  _buildQuickAmountChip('500k', 500000),
+                  const SizedBox(width: 6),
+                  ActionChip(
+                    label: const Text(
+                      'Tất cả số dư mục tiêu',
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                    ),
+                    backgroundColor: const Color(0xFFEFF6FF),
+                    side: const BorderSide(color: Color(0xFFBFDBFE)),
+                    onPressed: () => _applyQuickAmount(widget.goal.currentAmount),
+                  ),
+                ],
+              ),
+            ),
+
+            // Cảnh báo nếu số tiền vượt quá số tiền có trong mục tiêu
+            if (_isExceeded) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: const [
+                  Icon(
+                    Icons.error_outline_rounded,
+                    color: AppColors.errorRed,
+                    size: 14,
+                  ),
+                  SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      'Vượt quá số tiền đang có trong mục tiêu',
+                      style: TextStyle(
+                        color: AppColors.errorRed,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            const SizedBox(height: 20),
+
+            // 2 Nút bấm đáy: Đóng & Xác nhận rút
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primaryBlue,
+                      backgroundColor: AppColors.white,
+                      side: const BorderSide(color: AppColors.primaryBlue),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Đóng',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _canSubmit && !_isSubmitting ? _handleSubmit : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryBlue,
+                      disabledBackgroundColor: AppColors.disabledBlue,
+                      foregroundColor: AppColors.white,
+                      disabledForegroundColor: AppColors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Xác nhận rút',
                             style: TextStyle(fontWeight: FontWeight.w700),
                           ),
                   ),
