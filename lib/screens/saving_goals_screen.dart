@@ -6,6 +6,7 @@ import '../models/app_settings.dart';
 import '../models/jar.dart';
 import '../models/saving_goal.dart';
 import '../services/moneda_service.dart';
+import '../widgets/mb_feedback.dart';
 import '../widgets/moneda_bottom_bar.dart';
 import 'payment_screen.dart';
 import 'receive_money_screen.dart';
@@ -33,13 +34,30 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
   @override
   void initState() {
     super.initState();
+    if (_monedaService.hasSavingGoalsCache) {
+      _goals = MonedaService.cachedSavingGoals!
+          .map((json) => SavingGoal.fromJson(json))
+          .toList();
+      if (MonedaService.cachedSettings != null) {
+        _settings = AppSettings.fromJson(MonedaService.cachedSettings!);
+      }
+      if (MonedaService.cachedJars != null) {
+        _jars = {
+          for (var e in MonedaService.cachedJars!)
+            (e['jar_type'] as String).toUpperCase(): Jar.fromJson(e)
+        };
+      }
+      _isLoading = false;
+    }
     _loadData();
   }
 
   Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-    });
+    if (_goals.isEmpty && _settings == null) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     try {
       final results = await Future.wait<dynamic>(<Future<dynamic>>[
@@ -88,15 +106,11 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
 
     if (result == true) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            goal == null
-                ? 'Đã tạo mục tiêu tiết kiệm mới thành công!'
-                : 'Đã cập nhật mục tiêu "${goal.goalName}" thành công!',
-          ),
-          backgroundColor: AppColors.successGreen,
-        ),
+      showMbTopToast(
+        context,
+        goal == null
+            ? 'Đã tạo mục tiêu tiết kiệm mới thành công!'
+            : 'Đã cập nhật mục tiêu "${goal.goalName}" thành công!',
       );
       _loadData();
     }
@@ -105,11 +119,9 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
   /// Mở Modal Chuyển tiền từ Hũ Save vào Mục tiêu
   Future<void> _openTransferToGoalModal({SavingGoal? preSelectedGoal}) async {
     if (_goals.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng tạo ít nhất 1 mục tiêu trước khi chuyển tiền!'),
-          backgroundColor: AppColors.primaryBlue,
-        ),
+      showMbTopToast(
+        context,
+        'Vui lòng tạo ít nhất 1 mục tiêu trước khi chuyển tiền!',
       );
       return;
     }
@@ -138,14 +150,9 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
       final amount = result['amount'] as double;
       final goalName = result['goalName'] as String;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Đã chuyển thành công ${CurrencyFormatter.format(amount)} vào mục tiêu "$goalName"!',
-          ),
-          backgroundColor: AppColors.successGreen,
-          duration: const Duration(seconds: 3),
-        ),
+      showMbTopToast(
+        context,
+        'Đã chuyển thành công ${CurrencyFormatter.format(amount)} vào mục tiêu "$goalName"!',
       );
       _loadData();
     }
@@ -154,87 +161,26 @@ class _SavingGoalsScreenState extends State<SavingGoalsScreen> {
   /// Xác nhận xóa mục tiêu
   Future<void> _handleDeleteGoal(SavingGoal goal) async {
     final hasSavings = goal.currentAmount > 0;
+    final message = hasSavings
+        ? 'Mục tiêu này đang có tích lũy ${CurrencyFormatter.format(goal.currentAmount)}. Khi xoá, toàn bộ số tiền này sẽ được tự động hoàn trả về Hũ SAVE.'
+        : 'Bạn có chắc chắn muốn xoá mục tiêu tiết kiệm này không?';
 
-    final confirm = await showDialog<bool>(
+    final confirm = await showMbDeleteConfirmDialog(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: AppColors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            'Xác nhận xóa mục tiêu',
-            style: TextStyle(
-              color: AppColors.textDark,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          content: Text(
-            hasSavings
-                ? 'Mục tiêu "${goal.goalName}" đang có ${CurrencyFormatter.format(goal.currentAmount)} đã tích lũy.\nKhi xóa, toàn bộ số tiền này sẽ được hoàn lại vào Hũ SAVE. Bạn có chắc chắn muốn xóa?'
-                : 'Bạn có chắc chắn muốn xóa mục tiêu "${goal.goalName}"?',
-            style: const TextStyle(
-              color: AppColors.textDark,
-              fontSize: 13.5,
-              height: 1.45,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text(
-                'Hủy',
-                style: TextStyle(
-                  color: AppColors.textMuted,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.errorRed,
-                foregroundColor: AppColors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Text(
-                'Xóa',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        );
-      },
+      title: 'Xoá mục tiêu tiết kiệm',
+      message: message,
+      confirmText: 'Xoá mục tiêu',
     );
 
     if (confirm == true) {
       try {
         await _monedaService.deleteSavingGoal(goal.toJson());
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              hasSavings
-                  ? 'Đã xóa mục tiêu và hoàn trả ${CurrencyFormatter.format(goal.currentAmount)} vào Hũ SAVE thành công.'
-                  : 'Đã xóa mục tiêu "${goal.goalName}" thành công.',
-            ),
-            backgroundColor: AppColors.successGreen,
-          ),
-        );
+        showMbTopToast(context, 'Đã xoá mục tiêu tiết kiệm');
         _loadData();
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi xóa mục tiêu: $e'),
-            backgroundColor: AppColors.errorRed,
-          ),
-        );
+        showMbTopToast(context, 'Lỗi khi xóa mục tiêu: $e');
       }
     }
   }
@@ -922,11 +868,9 @@ class _AddOrEditGoalDialogState extends State<_AddOrEditGoalDialog> {
       setState(() {
         _isSaving = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi khi lưu mục tiêu: $e'),
-          backgroundColor: AppColors.errorRed,
-        ),
+      showMbTopToast(
+        context,
+        'Lỗi khi lưu mục tiêu: $e',
       );
     }
   }
@@ -1245,85 +1189,103 @@ class _TransferToGoalDialogState extends State<_TransferToGoalDialog> {
     super.dispose();
   }
 
-  /// Mở Modal Bottom Sheet chọn mục tiêu nhận tiền
+  /// Mở Modal Bottom Sheet chọn mục tiêu nhận tiền (chiều cao 78%)
   Future<void> _showSelectGoalBottomSheet() async {
     final picked = await showModalBottomSheet<SavingGoal>(
       context: context,
-      backgroundColor: AppColors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  child: Text(
-                    'Chọn mục tiêu nhận tiền',
-                    style: TextStyle(
-                      color: AppColors.textDark,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                const Divider(height: 1, color: AppColors.borderGray),
-                ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: widget.goals.length,
-                  separatorBuilder: (context, index) =>
-                      const Divider(height: 1, color: AppColors.borderGray),
-                  itemBuilder: (context, index) {
-                    final item = widget.goals[index];
-                    final isChecked = item.id == _selectedGoal?.id;
-
-                    return ListTile(
-                      onTap: () => Navigator.pop(sheetContext, item),
-                      leading: Container(
-                        width: 22,
-                        height: 22,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isChecked
-                                ? AppColors.primaryBlue
-                                : AppColors.saveGray,
-                            width: isChecked ? 6 : 1.5,
+        return FractionallySizedBox(
+          heightFactor: 0.78,
+          child: Container(
+            decoration: const BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: SafeArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Chọn mục tiêu nhận tiền',
+                          style: TextStyle(
+                            color: AppColors.textDark,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
-                      ),
-                      title: Text(
-                        item.goalName,
-                        style: TextStyle(
-                          color: AppColors.textDark,
-                          fontSize: 14.5,
-                          fontWeight:
-                              isChecked ? FontWeight.w800 : FontWeight.w600,
+                        IconButton(
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: AppColors.textMuted,
+                            size: 22,
+                          ),
                         ),
-                      ),
-                      subtitle: Text(
-                        'Đã tích lũy: ${CurrencyFormatter.format(item.currentAmount)} / ${CurrencyFormatter.format(item.targetAmount)} (${item.progressPercent}%)',
-                        style: const TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 12,
-                        ),
-                      ),
-                      trailing: isChecked
-                          ? const Icon(
-                              Icons.check_circle_rounded,
-                              color: AppColors.primaryBlue,
-                              size: 20,
-                            )
-                          : null,
-                    );
-                  },
-                ),
-              ],
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1, color: AppColors.borderGray),
+                  Expanded(
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: widget.goals.length,
+                      separatorBuilder: (context, index) =>
+                          const Divider(height: 1, color: AppColors.borderGray),
+                      itemBuilder: (context, index) {
+                        final item = widget.goals[index];
+                        final isChecked = item.id == _selectedGoal?.id;
+
+                        return ListTile(
+                          onTap: () => Navigator.pop(sheetContext, item),
+                          leading: Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isChecked
+                                    ? AppColors.primaryBlue
+                                    : AppColors.saveGray,
+                                width: isChecked ? 6 : 1.5,
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            item.goalName,
+                            style: TextStyle(
+                              color: AppColors.textDark,
+                              fontSize: 14.5,
+                              fontWeight:
+                                  isChecked ? FontWeight.w800 : FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'Đã tích lũy: ${CurrencyFormatter.format(item.currentAmount)} / ${CurrencyFormatter.format(item.targetAmount)} (${item.progressPercent}%)',
+                            style: const TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 12,
+                            ),
+                          ),
+                          trailing: isChecked
+                              ? const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: AppColors.primaryBlue,
+                                  size: 20,
+                                )
+                              : null,
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -1365,11 +1327,9 @@ class _TransferToGoalDialogState extends State<_TransferToGoalDialog> {
       setState(() {
         _isSubmitting = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi khi chuyển tiền: $e'),
-          backgroundColor: AppColors.errorRed,
-        ),
+      showMbTopToast(
+        context,
+        'Lỗi khi chuyển tiền: $e',
       );
     }
   }

@@ -5,6 +5,7 @@ import '../core/utils/currency_formatter.dart';
 import '../models/app_settings.dart';
 import '../models/jar.dart';
 import '../services/moneda_service.dart';
+import '../widgets/mb_feedback.dart';
 
 /// Màn hình Thanh toán chi tiêu (chuẩn phong cách MB Bank)
 class PaymentScreen extends StatefulWidget {
@@ -73,12 +74,24 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   Future<void> _loadInitialData() async {
+    if (_monedaService.hasHomeCache) {
+      _settings = AppSettings.fromJson(MonedaService.cachedSettings!);
+      _jars = {
+        for (var e in MonedaService.cachedJars!)
+          (e['jar_type'] as String).toUpperCase(): Jar.fromJson(e)
+      };
+      _isLoading = false;
+    }
     try {
       final results = await Future.wait([
         _monedaService.getAppSettings(),
         _monedaService.getJars(),
         _monedaService.getExpenseCategorySuggestions(),
-        _monedaService.getExpenseTitleSuggestions(),
+        _monedaService.getExpenseTitleSuggestions(
+          category: _categoryController.text.trim().isEmpty
+              ? null
+              : _categoryController.text.trim(),
+        ),
       ]);
 
       if (!mounted) return;
@@ -97,6 +110,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
+  Future<void> _onCategoryChanged(String category) async {
+    final titles = await _monedaService.getExpenseTitleSuggestions(
+      category: category.trim().isEmpty ? null : category.trim(),
+    );
+    if (!mounted) return;
+    setState(() {
+      _titleSuggestions = titles;
+    });
+  }
+
   void _openJarSelectorBottomSheet() {
     final needRatio = _settings?.needRatio ?? 50;
     final wantRatio = _settings?.wantRatio ?? 30;
@@ -109,80 +132,90 @@ class _PaymentScreenState extends State<PaymentScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Chọn nguồn chi tiêu',
-                    style: TextStyle(
-                      color: AppColors.textDark,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
+        return FractionallySizedBox(
+          heightFactor: 0.78,
+          child: Container(
+            decoration: const BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Chọn nguồn chi tiêu',
+                      style: TextStyle(
+                        color: AppColors.textDark,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: AppColors.textMuted,
+                        size: 22,
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(color: AppColors.borderGray, height: 16),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        // Option 1: NEED
+                        _buildJarRadioOption(
+                          value: 'NEED',
+                          title: 'Hũ NEED ($needRatio%)',
+                          subtitle:
+                              'Số dư: ${CurrencyFormatter.format(needBalance)}',
+                          isSelected: _selectedJarType == 'NEED',
+                          onTap: () {
+                            setState(() => _selectedJarType = 'NEED');
+                            Navigator.pop(context);
+                          },
+                        ),
+
+                        // Option 2: WANT
+                        _buildJarRadioOption(
+                          value: 'WANT',
+                          title: 'Hũ WANT ($wantRatio%)',
+                          subtitle:
+                              'Số dư: ${CurrencyFormatter.format(wantBalance)}',
+                          isSelected: _selectedJarType == 'WANT',
+                          onTap: () {
+                            setState(() => _selectedJarType = 'WANT');
+                            Navigator.pop(context);
+                          },
+                        ),
+
+                        // Option 3: SAVE
+                        _buildJarRadioOption(
+                          value: 'SAVE',
+                          title: 'Hũ SAVE ($saveRatio%)',
+                          subtitle:
+                              'Số dư: ${CurrencyFormatter.format(saveBalance)}',
+                          isSelected: _selectedJarType == 'SAVE',
+                          onTap: () {
+                            setState(() => _selectedJarType = 'SAVE');
+                            Navigator.pop(context);
+                          },
+                        ),
+                      ],
                     ),
                   ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(
-                      Icons.close_rounded,
-                      color: AppColors.textMuted,
-                      size: 22,
-                    ),
-                  ),
-                ],
-              ),
-              const Divider(color: AppColors.borderGray, height: 16),
-              const SizedBox(height: 8),
-
-              // Option 1: NEED
-              _buildJarRadioOption(
-                value: 'NEED',
-                title: 'Hũ NEED ($needRatio%)',
-                subtitle:
-                    'Số dư: ${CurrencyFormatter.format(needBalance)}',
-                isSelected: _selectedJarType == 'NEED',
-                onTap: () {
-                  setState(() => _selectedJarType = 'NEED');
-                  Navigator.pop(context);
-                },
-              ),
-
-              // Option 2: WANT
-              _buildJarRadioOption(
-                value: 'WANT',
-                title: 'Hũ WANT ($wantRatio%)',
-                subtitle:
-                    'Số dư: ${CurrencyFormatter.format(wantBalance)}',
-                isSelected: _selectedJarType == 'WANT',
-                onTap: () {
-                  setState(() => _selectedJarType = 'WANT');
-                  Navigator.pop(context);
-                },
-              ),
-
-              // Option 3: SAVE
-              _buildJarRadioOption(
-                value: 'SAVE',
-                title: 'Hũ SAVE ($saveRatio%)',
-                subtitle:
-                    'Số dư: ${CurrencyFormatter.format(saveBalance)}',
-                isSelected: _selectedJarType == 'SAVE',
-                onTap: () {
-                  setState(() => _selectedJarType = 'SAVE');
-                  Navigator.pop(context);
-                },
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -270,11 +303,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi khi thanh toán: $e'),
-          backgroundColor: AppColors.errorRed,
-        ),
+      showMbTopToast(
+        context,
+        'Lỗi khi thanh toán: $e',
       );
     } finally {
       if (mounted) {
@@ -684,6 +715,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
               ),
               child: TextField(
                 controller: _categoryController,
+                onChanged: (val) {
+                  _onCategoryChanged(val);
+                },
                 decoration: InputDecoration(
                   hintText: 'Chọn hoặc nhập danh mục (VD: Ăn uống, Mua sắm...)',
                   hintStyle: const TextStyle(
@@ -707,6 +741,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           ),
                           onPressed: () {
                             _categoryController.clear();
+                            _onCategoryChanged('');
                           },
                         ),
                       IconButton(
@@ -757,6 +792,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           _categoryController.text = cat;
                           _showCategoryDropdown = false;
                         });
+                        _onCategoryChanged(cat);
                       },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
@@ -940,7 +976,21 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           color: AppColors.primaryBlue,
                           size: 24,
                         ),
-                        onPressed: () {
+                        onPressed: () async {
+                          if (!_showTitleDropdown) {
+                            final currentCat = _categoryController.text.trim();
+                            final titles = await _monedaService
+                                .getExpenseTitleSuggestions(
+                              category: currentCat.isEmpty ? null : currentCat,
+                            );
+                            if (mounted) {
+                              setState(() {
+                                _titleSuggestions = titles;
+                                _showTitleDropdown = true;
+                              });
+                              return;
+                            }
+                          }
                           setState(() {
                             _showTitleDropdown = !_showTitleDropdown;
                           });

@@ -6,6 +6,7 @@ import '../models/transaction_item.dart';
 import '../services/moneda_service.dart';
 import '../widgets/balance_carousel.dart';
 import '../widgets/jars_allocation_card.dart';
+import '../widgets/mb_feedback.dart';
 import '../widgets/moneda_bottom_bar.dart';
 import '../widgets/quick_actions_grid.dart';
 import '../widgets/recent_transactions_card.dart';
@@ -47,6 +48,21 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    if (_monedaService.hasHomeCache) {
+      _settings = AppSettings.fromJson(MonedaService.cachedSettings!);
+      _jars = {
+        for (var e in MonedaService.cachedJars!)
+          (e['jar_type'] as String).toUpperCase(): Jar.fromJson(e)
+      };
+      if (MonedaService.cachedRecentTransactions != null) {
+        _recentTransactions = MonedaService.cachedRecentTransactions!
+            .map((raw) => raw['type'] == 'income'
+                ? TransactionItem.fromIncome(raw)
+                : TransactionItem.fromExpense(raw))
+            .toList();
+      }
+      _isLoading = false;
+    }
     _loadDashboardData();
   }
 
@@ -79,14 +95,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _handleRollover({required bool transferToSave}) async {
     if (!transferToSave) {
       // Giữ nguyên số tiền ở từng hũ và giữ lại thông báo để chuyển sau
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Đã giữ lại số dư từng hũ. Bạn có thể chuyển sang Save bất cứ lúc nào trong tháng.',
-          ),
-          backgroundColor: AppColors.primaryBlue,
-          duration: Duration(seconds: 3),
-        ),
+      showMbTopToast(
+        context,
+        'Đã giữ lại số dư từng hũ. Bạn có thể chuyển sang Save bất cứ lúc nào trong tháng.',
       );
       return;
     }
@@ -100,21 +111,15 @@ class _HomeScreenState extends State<HomeScreen> {
       await _loadDashboardData();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Đã chuyển toàn bộ số dư thặng dư sang hũ Save thành công!',
-          ),
-          backgroundColor: AppColors.successGreen,
-        ),
+      showMbTopToast(
+        context,
+        'Đã chuyển toàn bộ số dư thặng dư sang hũ Save thành công!',
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi khi quyết toán: $e'),
-          backgroundColor: AppColors.errorRed,
-        ),
+      showMbTopToast(
+        context,
+        'Lỗi khi quyết toán: $e',
       );
     } finally {
       if (mounted) {

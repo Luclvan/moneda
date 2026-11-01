@@ -4,6 +4,7 @@ import '../core/utils/currency_formatter.dart';
 import '../models/app_settings.dart';
 import '../models/jar.dart';
 import '../services/moneda_service.dart';
+import 'mb_feedback.dart';
 
 /// Modal Cài đặt Moneda (chuẩn phong cách MB Bank)
 class SettingsModal extends StatefulWidget {
@@ -105,14 +106,13 @@ class _SettingsModalState extends State<SettingsModal> {
       );
 
       if (!mounted) return;
+      showMbTopToast(context, 'Đã cập nhật tỷ lệ 3 hũ thành công');
       Navigator.pop(context, true); // Đóng modal và reload dữ liệu
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi khi cập nhật tỷ lệ: $e'),
-          backgroundColor: AppColors.errorRed,
-        ),
+      showMbTopToast(
+        context,
+        'Lỗi khi cập nhật tỷ lệ: $e',
       );
     } finally {
       if (mounted) {
@@ -138,14 +138,13 @@ class _SettingsModalState extends State<SettingsModal> {
       );
 
       if (!mounted) return;
+      showMbTopToast(context, 'Chuyển tiền nội bộ thành công');
       Navigator.pop(context, true); // Đóng modal và reload dữ liệu
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi khi chuyển tiền nội bộ: $e'),
-          backgroundColor: AppColors.errorRed,
-        ),
+      showMbTopToast(
+        context,
+        'Lỗi khi chuyển tiền nội bộ: $e',
       );
     } finally {
       if (mounted) {

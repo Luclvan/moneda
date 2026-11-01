@@ -5,6 +5,7 @@ import '../core/utils/currency_formatter.dart';
 import '../models/app_settings.dart';
 import '../models/jar.dart';
 import '../services/moneda_service.dart';
+import '../widgets/mb_feedback.dart';
 import 'payment_screen.dart';
 import 'receive_money_screen.dart';
 
@@ -70,13 +71,24 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     _fromDate = DateTime(now.year, now.month, 1);
     _toDate = DateTime(now.year, now.month + 1, 0);
 
+    if (_monedaService.hasHomeCache) {
+      _settings = AppSettings.fromJson(MonedaService.cachedSettings!);
+      _jars = {
+        for (var e in MonedaService.cachedJars!)
+          (e['jar_type'] as String).toUpperCase(): Jar.fromJson(e)
+      };
+      _isLoading = false;
+    }
+
     _loadData();
   }
 
   Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-    });
+    if (_settings == null && _expenses.isEmpty && _incomes.isEmpty) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     try {
       final results = await Future.wait<dynamic>(<Future<dynamic>>[
@@ -174,170 +186,45 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   }
 
   Future<void> _handleDeleteExpense(Map<String, dynamic> expense) async {
-    final title = expense['title'] ?? 'Khoản chi tiêu';
-    final amount = (expense['amount'] as num?)?.toDouble() ?? 0.0;
-    final jarType = (expense['jar_type'] as String? ?? 'NEED').toUpperCase();
-
-    final confirm = await showDialog<bool>(
+    final confirm = await showMbDeleteConfirmDialog(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: AppColors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            'Xác nhận xóa chi tiêu',
-            style: TextStyle(
-              color: AppColors.textDark,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          content: Text(
-            'Bạn có chắc chắn muốn xóa giao dịch "$title" với số tiền ${CurrencyFormatter.format(amount)}?\nSố tiền sẽ được hoàn trả lại vào hũ $jarType.',
-            style: const TextStyle(
-              color: AppColors.textDark,
-              fontSize: 13.5,
-              height: 1.45,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text(
-                'Hủy',
-                style: TextStyle(
-                  color: AppColors.textMuted,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.errorRed,
-                foregroundColor: AppColors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Text(
-                'Xóa',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        );
-      },
+      title: 'Xoá giao dịch hiện tại',
+      message:
+          'Khi xoá, số tiền của giao dịch này sẽ được tự động hoàn trả / thu hồi chính xác ở các hũ liên quan.',
+      confirmText: 'Xoá giao dịch',
     );
 
     if (confirm == true) {
       try {
         await _monedaService.deleteExpense(expense);
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Đã xóa giao dịch và hoàn trả tiền vào hũ thành công.',
-            ),
-            backgroundColor: AppColors.successGreen,
-          ),
-        );
+        showMbTopToast(context, 'Đã xoá giao dịch thành công');
         _loadData();
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi xóa chi tiêu: $e'),
-            backgroundColor: AppColors.errorRed,
-          ),
-        );
+        showMbTopToast(context, 'Lỗi khi xóa chi tiêu: $e');
       }
     }
   }
 
   Future<void> _handleDeleteIncome(Map<String, dynamic> income) async {
-    final sourceName = income['source_name'] ?? 'Khoản thu nhập';
-    final amount = (income['amount'] as num?)?.toDouble() ?? 0.0;
-
-    final confirm = await showDialog<bool>(
+    final confirm = await showMbDeleteConfirmDialog(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: AppColors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            'Xác nhận xóa thu nhập',
-            style: TextStyle(
-              color: AppColors.textDark,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          content: Text(
-            'Bạn có chắc chắn muốn xóa giao dịch "$sourceName" với số tiền ${CurrencyFormatter.format(amount)}?\nSố tiền đã phân bổ sẽ được thu hồi khỏi các hũ tương ứng.',
-            style: const TextStyle(
-              color: AppColors.textDark,
-              fontSize: 13.5,
-              height: 1.45,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text(
-                'Hủy',
-                style: TextStyle(
-                  color: AppColors.textMuted,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.errorRed,
-                foregroundColor: AppColors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Text(
-                'Xóa',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        );
-      },
+      title: 'Xoá giao dịch hiện tại',
+      message:
+          'Khi xoá, số tiền của giao dịch này sẽ được tự động hoàn trả / thu hồi chính xác ở các hũ liên quan.',
+      confirmText: 'Xoá giao dịch',
     );
 
     if (confirm == true) {
       try {
         await _monedaService.deleteIncome(income);
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Đã xóa thu nhập và thu hồi số tiền phân bổ thành công.',
-            ),
-            backgroundColor: AppColors.successGreen,
-          ),
-        );
+        showMbTopToast(context, 'Đã xoá giao dịch thành công');
         _loadData();
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi xóa thu nhập: $e'),
-            backgroundColor: AppColors.errorRed,
-          ),
-        );
+        showMbTopToast(context, 'Lỗi khi xóa thu nhập: $e');
       }
     }
   }
