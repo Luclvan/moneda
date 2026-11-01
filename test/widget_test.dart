@@ -742,5 +742,46 @@ void main() {
       expect(box.heightFactor, 0.78);
       expect(find.text('Chọn hũ nhận tiền'), findsOneWidget);
     });
+
+    testWidgets('PaymentScreen blocks payment exceeding jar balance with warning and disabled button',
+        (WidgetTester tester) async {
+      MonedaService.cachedSettings = {
+        'id': 1,
+        'total_balance': 15000000.0,
+        'need_ratio': 50,
+        'want_ratio': 30,
+        'save_ratio': 20,
+      };
+      MonedaService.cachedJars = [
+        {'id': 1, 'jar_type': 'NEED', 'balance': 500000.0},
+        {'id': 2, 'jar_type': 'WANT', 'balance': 300000.0},
+        {'id': 3, 'jar_type': 'SAVE', 'balance': 200000.0},
+      ];
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: PaymentScreen(),
+        ),
+      );
+      await tester.pump();
+
+      final textFields = find.byType(TextField);
+      // Category
+      await tester.enterText(textFields.at(0), 'Ăn uống');
+      // Amount exceeding 500,000 VND
+      await tester.enterText(textFields.at(1), '1,000,000');
+      // Title
+      await tester.enterText(textFields.at(2), 'Tiệc sinh nhật');
+      await tester.pump();
+
+      // Verify warning message is shown
+      expect(find.textContaining('Số dư trong Hũ NEED không đủ'), findsOneWidget);
+
+      // Verify button 'Tiếp tục' is disabled (onPressed == null)
+      final continueButton = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Tiếp tục'),
+      );
+      expect(continueButton.onPressed, isNull);
+    });
   });
 }

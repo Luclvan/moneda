@@ -132,7 +132,15 @@ class _IncomeDetailScreenState extends State<IncomeDetailScreen> {
         _loadData();
       } catch (e) {
         if (!mounted) return;
-        showMbTopToast(context, 'Lỗi khi xóa thu nhập: $e');
+        final errorMsg = e.toString();
+        if (errorMsg.contains('đã được chi tiêu')) {
+          showMbTopToast(
+            context,
+            'Không thể xóa khoản thu nhập này vì số tiền trong hũ đã được chi tiêu!',
+          );
+        } else {
+          showMbTopToast(context, 'Lỗi khi xóa thu nhập: $e');
+        }
       }
     }
   }

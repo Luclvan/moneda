@@ -99,10 +99,11 @@ class _MbTopToastWidgetState extends State<_MbTopToastWidget>
 
   @override
   Widget build(BuildContext context) {
-    final topPadding = MediaQuery.of(context).padding.top;
+    final double safeTop = MediaQuery.of(context).padding.top;
+    final double topOffset = safeTop > 20 ? (safeTop + 16.0) : 28.0;
 
     return Positioned(
-      top: topPadding + 12,
+      top: topOffset,
       left: 16,
       right: 16,
       child: Center(
