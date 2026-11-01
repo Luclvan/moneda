@@ -3,9 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moneda/core/utils/currency_formatter.dart';
 import 'package:moneda/models/app_settings.dart';
 import 'package:moneda/models/jar.dart';
+import 'package:moneda/models/monthly_report.dart';
 import 'package:moneda/models/transaction_item.dart';
 import 'package:moneda/screens/expense_detail_screen.dart';
 import 'package:moneda/screens/income_detail_screen.dart';
+import 'package:moneda/screens/report_screen.dart';
 import 'package:moneda/screens/transaction_history_screen.dart';
 import 'package:moneda/widgets/moneda_bottom_bar.dart';
 import 'package:moneda/widgets/quick_actions_grid.dart';
@@ -299,6 +301,77 @@ void main() {
       expect(find.text('Hũ Want'), findsOneWidget);
       expect(find.text('Hũ Save'), findsOneWidget);
       expect(find.text('Truy vấn giao dịch'), findsOneWidget);
+    });
+
+    test('MonthlyReportData and JarReport calculations and progress', () {
+      final jarNeed = JarReport(
+        jarType: 'NEED',
+        ratio: 50,
+        targetAmount: 7500000,
+        actualAmount: 3750000,
+        actualPercent: 25.0,
+        expenses: [
+          {
+            'id': 1,
+            'title': 'Cơm trưa',
+            'category': 'Ăn uống',
+            'amount': 50000,
+            'transaction_date': '2026-10-15T12:00:00Z',
+          }
+        ],
+      );
+
+      expect(jarNeed.jarType, 'NEED');
+      expect(jarNeed.ratio, 50);
+      expect(jarNeed.targetAmount, 7500000.0);
+      expect(jarNeed.actualAmount, 3750000.0);
+      expect(jarNeed.actualPercent, 25.0);
+      expect(jarNeed.progress, 0.5);
+
+      final report = MonthlyReportData(
+        month: 10,
+        year: 2026,
+        monthlyIncome: 15000000,
+        jars: {'NEED': jarNeed},
+        allExpenses: jarNeed.expenses,
+      );
+
+      expect(report.month, 10);
+      expect(report.year, 2026);
+      expect(report.monthlyIncome, 15000000.0);
+      expect(report.needReport.actualAmount, 3750000.0);
+      expect(report.wantReport.actualAmount, 0.0);
+    });
+
+    testWidgets('ReportScreen renders 3 tiers and bottom bar without crash',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: ReportScreen(initialMonth: 10, initialYear: 2026),
+        ),
+      );
+      await tester.pump();
+
+      // Top AppBar
+      expect(find.text('Báo cáo & Sao kê'), findsOneWidget);
+
+      // Tầng 1: Thu nhập tháng & Thời gian
+      expect(find.text('Thu nhập tháng'), findsOneWidget);
+      expect(find.text('Thời gian'), findsOneWidget);
+      expect(find.text('Tháng 10/2026'), findsOneWidget);
+
+      // Tầng 2: Ngân sách Mục tiêu vs Thực tế
+      expect(find.text('Ngân sách Mục tiêu vs Thực tế'), findsOneWidget);
+      expect(find.text('Hũ NEED'), findsOneWidget);
+      expect(find.text('Hũ WANT'), findsOneWidget);
+      expect(find.text('Hũ SAVE'), findsOneWidget);
+      expect(find.text('Đang xem chi tiết'), findsOneWidget);
+
+      // Tầng 3: Chi tiết chi tiêu hũ đang chọn
+      expect(find.textContaining('Chi tiết chi tiêu: Hũ NEED'), findsOneWidget);
+
+      // Bottom Bar có nhãn Báo cáo
+      expect(find.text('Báo cáo'), findsOneWidget);
     });
 
     testWidgets('IncomeDetailScreen renders header and query card without crash',

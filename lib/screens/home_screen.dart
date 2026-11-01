@@ -13,6 +13,7 @@ import '../widgets/rollover_alert_banner.dart';
 import '../widgets/settings_modal.dart';
 import 'payment_screen.dart';
 import 'receive_money_screen.dart';
+import 'report_screen.dart';
 import 'transaction_history_screen.dart';
 
 /// Màn hình Trang chủ (Home Dashboard) chuẩn phong cách MB Bank
@@ -177,6 +178,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _navigateToReport() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ReportScreen(),
+      ),
+    );
+    if (mounted) {
+      _loadDashboardData();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -243,15 +256,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _bottomNavIndex = index;
           });
         },
-        onReportTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Tính năng Báo cáo đang được phát triển.'),
-              backgroundColor: AppColors.primaryBlue,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        },
+        onReportTap: _navigateToReport,
         onPaymentTap: _navigateToPayment,
         onReceiveTap: _navigateToReceiveMoney,
         onGoalsTap: () {

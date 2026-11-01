@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/supabase_config.dart';
 import '../models/app_settings.dart';
 import '../models/jar.dart';
+import '../models/monthly_report.dart';
 import '../models/transaction_item.dart';
 
 /// Dữ liệu tổng hợp cho Màn hình Trang chủ
@@ -666,6 +667,135 @@ class MonedaService {
     } catch (e) {
       debugPrint('Error deleting income: $e');
       rethrow;
+    }
+  }
+
+  /// Lấy dữ liệu báo cáo & sao kê thống kê theo tháng/năm
+  Future<MonthlyReportData> getMonthlyReport({
+    required int month,
+    required int year,
+  }) async {
+    try {
+      final startOfMonth = DateTime(year, month, 1);
+      final endOfMonth = DateTime(year, month + 1, 0, 23, 59, 59, 999);
+
+      final incomesFuture = _client
+          .from('incomes')
+          .select('*')
+          .gte('transaction_date', startOfMonth.toIso8601String())
+          .lte('transaction_date', endOfMonth.toIso8601String());
+
+      final expensesFuture = _client
+          .from('expenses')
+          .select('*')
+          .gte('transaction_date', startOfMonth.toIso8601String())
+          .lte('transaction_date', endOfMonth.toIso8601String())
+          .order('transaction_date', ascending: false);
+
+      final settingsFuture = getAppSettings();
+
+      final results = await Future.wait<dynamic>(<Future<dynamic>>[
+        incomesFuture,
+        expensesFuture,
+        settingsFuture,
+      ]);
+
+      final incomeRows = results[0] as List<dynamic>;
+      final expenseRows = results[1] as List<dynamic>;
+      final settings = results[2] as AppSettings;
+
+      double monthlyIncome = 0.0;
+      for (final inc in incomeRows) {
+        monthlyIncome += (inc['amount'] as num?)?.toDouble() ?? 0.0;
+      }
+
+      final allExpenses = List<Map<String, dynamic>>.from(expenseRows);
+
+      final jarRatios = {
+        'NEED': settings.needRatio,
+        'WANT': settings.wantRatio,
+        'SAVE': settings.saveRatio,
+      };
+
+      final Map<String, JarReport> jarsMap = {};
+
+      for (final jarType in ['NEED', 'WANT', 'SAVE']) {
+        final ratio = jarRatios[jarType] ?? 0;
+        final jarExpenses = allExpenses
+            .where((e) =>
+                (e['jar_type'] as String? ?? '').toUpperCase() == jarType)
+            .toList();
+
+        final actualAmount = jarExpenses.fold<double>(
+          0.0,
+          (sum, e) => sum + ((e['amount'] as num?)?.toDouble() ?? 0.0),
+        );
+
+        final targetAmount =
+            monthlyIncome > 0 ? monthlyIncome * (ratio / 100.0) : 0.0;
+
+        final actualPercent =
+            monthlyIncome > 0 ? (actualAmount / monthlyIncome) * 100.0 : 0.0;
+
+        jarsMap[jarType] = JarReport(
+          jarType: jarType,
+          ratio: ratio,
+          targetAmount: targetAmount,
+          actualAmount: actualAmount,
+          actualPercent: actualPercent,
+          expenses: jarExpenses,
+        );
+      }
+
+      return MonthlyReportData(
+        month: month,
+        year: year,
+        monthlyIncome: monthlyIncome,
+        jars: jarsMap,
+        allExpenses: allExpenses,
+      );
+    } catch (e) {
+      debugPrint('Error getting monthly report: $e');
+      final defaultSettings = AppSettings(
+        id: 1,
+        totalBalance: 0,
+        needRatio: 50,
+        wantRatio: 30,
+        saveRatio: 20,
+      );
+      final Map<String, JarReport> emptyJars = {
+        'NEED': JarReport(
+          jarType: 'NEED',
+          ratio: defaultSettings.needRatio,
+          targetAmount: 0,
+          actualAmount: 0,
+          actualPercent: 0,
+          expenses: const [],
+        ),
+        'WANT': JarReport(
+          jarType: 'WANT',
+          ratio: defaultSettings.wantRatio,
+          targetAmount: 0,
+          actualAmount: 0,
+          actualPercent: 0,
+          expenses: const [],
+        ),
+        'SAVE': JarReport(
+          jarType: 'SAVE',
+          ratio: defaultSettings.saveRatio,
+          targetAmount: 0,
+          actualAmount: 0,
+          actualPercent: 0,
+          expenses: const [],
+        ),
+      };
+      return MonthlyReportData(
+        month: month,
+        year: year,
+        monthlyIncome: 0.0,
+        jars: emptyJars,
+        allExpenses: const [],
+      );
     }
   }
 }
