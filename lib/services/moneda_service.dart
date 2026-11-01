@@ -609,6 +609,53 @@ class MonedaService {
     await executeRollover(transferToSave: true);
   }
 
+  /// Kết chuyển tiền dư chủ động sang Hũ Save
+  Future<double> transferSurplusToSave({
+    required bool includeNeed,
+    required bool includeWant,
+  }) async {
+    try {
+      final jars = await getJars();
+      final needBalance = jars['NEED']?.balance ?? 0.0;
+      final wantBalance = jars['WANT']?.balance ?? 0.0;
+      final saveBalance = jars['SAVE']?.balance ?? 0.0;
+
+      double totalTransferred = 0.0;
+      final nowIso = DateTime.now().toIso8601String();
+
+      if (includeNeed && needBalance > 0) {
+        totalTransferred += needBalance;
+        await _client.from('jars').update({
+          'balance': 0.0,
+          'updated_at': nowIso,
+        }).eq('jar_type', 'NEED');
+      }
+
+      if (includeWant && wantBalance > 0) {
+        totalTransferred += wantBalance;
+        await _client.from('jars').update({
+          'balance': 0.0,
+          'updated_at': nowIso,
+        }).eq('jar_type', 'WANT');
+      }
+
+      if (totalTransferred > 0) {
+        final newSaveBalance = saveBalance + totalTransferred;
+        await _client.from('jars').update({
+          'balance': newSaveBalance,
+          'updated_at': nowIso,
+        }).eq('jar_type', 'SAVE');
+      }
+
+      cachedMonthlyReports.clear();
+      await _refreshHomeCache();
+      return totalTransferred;
+    } catch (e) {
+      debugPrint('Error transferring surplus to save: $e');
+      rethrow;
+    }
+  }
+
   /// Xử lý quyết toán đầu tháng (Rollover)
   /// - transferToSave: true -> chuyển số dư dương của NEED & WANT sang SAVE, reset NEED & WANT về 0
   /// - transferToSave: false -> giữ lại từng hũ, chỉ cập nhật last_rollover_month thành tháng hiện tại
@@ -800,24 +847,36 @@ class MonedaService {
       final allocatedSave =
           (income['allocated_save'] as num?)?.toDouble() ?? 0.0;
 
-      // 1. Xóa bản ghi khỏi incomes
+      // 1. Kiểm tra số dư hiện tại của 3 hũ để chặn âm quỹ
+      final jars = await getJars();
+      final currentNeedBalance = jars['NEED']?.balance ?? 0.0;
+      final currentWantBalance = jars['WANT']?.balance ?? 0.0;
+      final currentSaveBalance = jars['SAVE']?.balance ?? 0.0;
+
+      if (currentNeedBalance < allocatedNeed ||
+          currentWantBalance < allocatedWant ||
+          currentSaveBalance < allocatedSave) {
+        throw Exception(
+            'Không thể xóa khoản thu nhập này vì số tiền trong hũ đã được chi tiêu!');
+      }
+
+      // 2. Xóa bản ghi khỏi incomes
       await _client.from('incomes').delete().eq('id', id);
 
-      // 2. Thu hồi số tiền tương ứng ở các hũ
-      final jars = await getJars();
+      // 3. Thu hồi số tiền tương ứng ở các hũ
       final nowIso = DateTime.now().toIso8601String();
 
       await Future.wait<dynamic>(<Future<dynamic>>[
         _client.from('jars').update({
-          'balance': (jars['NEED']?.balance ?? 0.0) - allocatedNeed,
+          'balance': currentNeedBalance - allocatedNeed,
           'updated_at': nowIso,
         }).eq('jar_type', 'NEED'),
         _client.from('jars').update({
-          'balance': (jars['WANT']?.balance ?? 0.0) - allocatedWant,
+          'balance': currentWantBalance - allocatedWant,
           'updated_at': nowIso,
         }).eq('jar_type', 'WANT'),
         _client.from('jars').update({
-          'balance': (jars['SAVE']?.balance ?? 0.0) - allocatedSave,
+          'balance': currentSaveBalance - allocatedSave,
           'updated_at': nowIso,
         }).eq('jar_type', 'SAVE'),
       ]);
@@ -1137,6 +1196,59 @@ class MonedaService {
       await _refreshGoalsCache();
     } catch (e) {
       debugPrint('Error transferring from SAVE to goal: $e');
+      rethrow;
+    }
+  }
+
+  /// Rút / Chuyển tiền từ Mục tiêu tiết kiệm ra Hũ khác
+  Future<void> withdrawFromGoalToJar({
+    required Map<String, dynamic> goal,
+    required String targetJarType,
+    required double amount,
+  }) async {
+    try {
+      final goalId = goal['id'];
+      final currentGoalAmount =
+          (goal['current_amount'] as num?)?.toDouble() ?? 0.0;
+
+      if (amount <= 0 || amount > currentGoalAmount) {
+        throw Exception(
+            'Số tiền rút không hợp lệ (phải > 0 và <= số tiền hiện có trong mục tiêu)');
+      }
+
+      final normalizedJarType = targetJarType.toUpperCase();
+      if (!['NEED', 'WANT', 'SAVE'].contains(normalizedJarType)) {
+        throw Exception('Hũ đích không hợp lệ: $targetJarType');
+      }
+
+      final nowIso = DateTime.now().toIso8601String();
+
+      // 1. Trừ amount khỏi current_amount của goal trong saving_goals
+      await _client.from('saving_goals').update({
+        'current_amount': currentGoalAmount - amount,
+      }).eq('id', goalId);
+
+      // 2. Cộng amount vào balance của hũ targetJarType trong bảng jars
+      final jars = await getJars();
+      final currentJarBalance = jars[normalizedJarType]?.balance ?? 0.0;
+      await _client.from('jars').update({
+        'balance': currentJarBalance + amount,
+        'updated_at': nowIso,
+      }).eq('jar_type', normalizedJarType);
+
+      // 3. Cộng hoàn trả amount vào total_balance trong bảng app_settings
+      final settings = await getAppSettings();
+      await _client.from('app_settings').update({
+        'total_balance': settings.totalBalance + amount,
+      }).eq('id', 1);
+
+      cachedMonthlyReports.clear();
+      cachedRecentTransactions = null;
+      cachedSavingGoals = null;
+      await _refreshHomeCache();
+      await _refreshGoalsCache();
+    } catch (e) {
+      debugPrint('Error withdrawing from goal to jar: $e');
       rethrow;
     }
   }

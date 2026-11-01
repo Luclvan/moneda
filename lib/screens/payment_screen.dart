@@ -48,11 +48,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
     return _currentAmount > 0 && _currentAmount > _currentJarBalance;
   }
 
-  bool get _canSubmit {
+  bool get _isFormValid {
     return _categoryController.text.trim().isNotEmpty &&
         _currentAmount > 0 &&
+        _currentAmount <= _currentJarBalance &&
         _titleController.text.trim().isNotEmpty;
   }
+
+  bool get _canSubmit => _isFormValid;
 
   @override
   void initState() {
@@ -275,7 +278,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   Future<void> _handleSubmit() async {
-    if (!_canSubmit || _isSubmitting) return;
+    if (!_isFormValid || _isSubmitting) return;
 
     setState(() {
       _isSubmitting = true;
