@@ -11,6 +11,8 @@ import 'package:moneda/screens/income_detail_screen.dart';
 import 'package:moneda/screens/report_screen.dart';
 import 'package:moneda/screens/saving_goals_screen.dart';
 import 'package:moneda/screens/transaction_history_screen.dart';
+import 'package:moneda/services/moneda_service.dart';
+import 'package:moneda/widgets/mb_feedback.dart';
 import 'package:moneda/widgets/moneda_bottom_bar.dart';
 import 'package:moneda/widgets/quick_actions_grid.dart';
 import 'package:moneda/widgets/rollover_alert_banner.dart';
@@ -444,6 +446,130 @@ void main() {
 
       // Bottom Bar có nhãn Mục tiêu
       expect(find.text('Mục tiêu'), findsOneWidget);
+    });
+
+    test('MonedaService in-memory cache and frequency suggestions', () async {
+      MonedaService.clearCache();
+      final service = MonedaService();
+
+      expect(service.hasHomeCache, false);
+      expect(service.hasSavingGoalsCache, false);
+      expect(service.hasMonthlyReportCache('2026-10'), false);
+
+      MonedaService.cachedSettings = {'id': 1, 'total_balance': 5000000.0};
+      MonedaService.cachedJars = [
+        {'id': 1, 'jar_type': 'NEED', 'balance': 2500000.0}
+      ];
+      expect(service.hasHomeCache, true);
+
+      MonedaService.cachedSavingGoals = [
+        {'id': 1, 'goal_name': 'Test Goal'}
+      ];
+      expect(service.hasSavingGoalsCache, true);
+
+      MonedaService.cachedMonthlyReports['2026-10'] = {'monthly_income': 10000000.0};
+      expect(service.hasMonthlyReportCache('2026-10'), true);
+
+      MonedaService.clearCache();
+      expect(service.hasHomeCache, false);
+
+      // Category suggestions
+      final eatingSuggestions =
+          await service.getExpenseTitleSuggestions(category: 'Ăn uống');
+      expect(eatingSuggestions.contains('Cơm trưa văn phòng'), true);
+
+      final billsSuggestions =
+          await service.getExpenseTitleSuggestions(category: 'Hóa đơn & Tiện ích');
+      expect(billsSuggestions.contains('Nạp 4G Viettel Topup'), true);
+
+      final grocerySuggestions =
+          await service.getExpenseTitleSuggestions(category: 'Hàng tạp hoá');
+      expect(grocerySuggestions.contains('Kem đánh răng'), true);
+    });
+
+    testWidgets('showMbTopToast displays toast and dismisses cleanly',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) {
+                return ElevatedButton(
+                  onPressed: () {
+                    showMbTopToast(context, 'Thao tác thành công!');
+                  },
+                  child: const Text('Show Toast'),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Show Toast'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('Thao tác thành công!'), findsOneWidget);
+      expect(find.byIcon(Icons.check), findsOneWidget);
+
+      // Fast forward past duration to test auto-dismiss
+      await tester.pump(const Duration(milliseconds: 1500));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Thao tác thành công!'), findsNothing);
+    });
+
+    testWidgets('showMbDeleteConfirmDialog renders MB style dialog and handles actions',
+        (WidgetTester tester) async {
+      bool? dialogResult;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) {
+                return ElevatedButton(
+                  onPressed: () async {
+                    dialogResult = await showMbDeleteConfirmDialog(
+                      context: context,
+                      title: 'Xoá mục tiêu tiết kiệm',
+                      message:
+                          'Mục tiêu này đang có 500,000 VND. Số tiền sẽ được hoàn lại vào Hũ SAVE.',
+                      confirmText: 'Xoá mục tiêu',
+                    );
+                  },
+                  child: const Text('Open Dialog'),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      // 1. Open dialog and tap 'Để sau' (Cancel)
+      await tester.tap(find.text('Open Dialog'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Xoá mục tiêu tiết kiệm'), findsOneWidget);
+      expect(find.text('i'), findsOneWidget);
+      expect(find.text('Xoá mục tiêu'), findsOneWidget);
+      expect(find.text('Để sau'), findsOneWidget);
+      expect(find.byIcon(Icons.close), findsOneWidget);
+
+      await tester.tap(find.text('Để sau'));
+      await tester.pumpAndSettle();
+
+      expect(dialogResult, false);
+
+      // 2. Open dialog and tap confirm
+      await tester.tap(find.text('Open Dialog'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Xoá mục tiêu'));
+      await tester.pumpAndSettle();
+
+      expect(dialogResult, true);
     });
   });
 }
