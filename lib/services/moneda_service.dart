@@ -41,6 +41,28 @@ class HomeDashboardData {
 class MonedaService {
   SupabaseClient get _client => SupabaseConfig.client;
 
+  // ==========================================
+  // IN-MEMORY CACHE (Zero-Spinner Caching - SUPL2)
+  // ==========================================
+  static Map<String, dynamic>? cachedSettings;
+  static List<Map<String, dynamic>>? cachedJars;
+  static List<Map<String, dynamic>>? cachedRecentTransactions;
+  static List<Map<String, dynamic>>? cachedSavingGoals;
+  static Map<String, Map<String, dynamic>> cachedMonthlyReports = {};
+
+  bool get hasHomeCache => cachedSettings != null && cachedJars != null;
+  bool get hasSavingGoalsCache => cachedSavingGoals != null;
+  bool hasMonthlyReportCache(String monthKey) =>
+      cachedMonthlyReports.containsKey(monthKey);
+
+  static void clearCache() {
+    cachedSettings = null;
+    cachedJars = null;
+    cachedRecentTransactions = null;
+    cachedSavingGoals = null;
+    cachedMonthlyReports.clear();
+  }
+
   /// Lấy thông tin app_settings (id = 1)
   Future<AppSettings> getAppSettings() async {
     try {
@@ -51,11 +73,12 @@ class MonedaService {
           .maybeSingle();
 
       if (response != null) {
+        cachedSettings = Map<String, dynamic>.from(response);
         return AppSettings.fromJson(response);
       }
 
       // Fallback mặc định nếu chưa có bản ghi id=1
-      return AppSettings(
+      final fallback = AppSettings(
         id: 1,
         totalBalance: 0,
         needRatio: 50,
@@ -63,8 +86,20 @@ class MonedaService {
         saveRatio: 20,
         lastRolloverMonth: DateFormat('yyyy-MM').format(DateTime.now()),
       );
+      cachedSettings = {
+        'id': fallback.id,
+        'total_balance': fallback.totalBalance,
+        'need_ratio': fallback.needRatio,
+        'want_ratio': fallback.wantRatio,
+        'save_ratio': fallback.saveRatio,
+        'last_rollover_month': fallback.lastRolloverMonth,
+      };
+      return fallback;
     } catch (e) {
       debugPrint('Error fetching app_settings: $e');
+      if (cachedSettings != null) {
+        return AppSettings.fromJson(cachedSettings!);
+      }
       rethrow;
     }
   }
@@ -73,6 +108,7 @@ class MonedaService {
   Future<Map<String, Jar>> getJars() async {
     try {
       final List<dynamic> response = await _client.from('jars').select('*');
+      cachedJars = List<Map<String, dynamic>>.from(response);
 
       final jarsMap = <String, Jar>{
         'NEED': Jar(jarType: 'NEED', balance: 0),
@@ -88,6 +124,18 @@ class MonedaService {
       return jarsMap;
     } catch (e) {
       debugPrint('Error fetching jars: $e');
+      if (cachedJars != null) {
+        final jarsMap = <String, Jar>{
+          'NEED': Jar(jarType: 'NEED', balance: 0),
+          'WANT': Jar(jarType: 'WANT', balance: 0),
+          'SAVE': Jar(jarType: 'SAVE', balance: 0),
+        };
+        for (final item in cachedJars!) {
+          final jar = Jar.fromJson(item);
+          jarsMap[jar.jarType] = jar;
+        }
+        return jarsMap;
+      }
       rethrow;
     }
   }
@@ -113,6 +161,22 @@ class MonedaService {
       final incomeRows = results[0] as List<dynamic>;
       final expenseRows = results[1] as List<dynamic>;
 
+      final rawCombined = <Map<String, dynamic>>[];
+      for (final item in incomeRows) {
+        rawCombined.add(Map<String, dynamic>.from(item as Map<String, dynamic>)..['type'] = 'income');
+      }
+      for (final item in expenseRows) {
+        rawCombined.add(Map<String, dynamic>.from(item as Map<String, dynamic>)..['type'] = 'expense');
+      }
+
+      rawCombined.sort((a, b) {
+        final dateA = DateTime.tryParse(a['transaction_date'].toString()) ?? DateTime.now();
+        final dateB = DateTime.tryParse(b['transaction_date'].toString()) ?? DateTime.now();
+        return dateB.compareTo(dateA);
+      });
+
+      cachedRecentTransactions = rawCombined.length > limit ? rawCombined.sublist(0, limit) : rawCombined;
+
       final List<TransactionItem> list = [];
 
       for (final item in incomeRows) {
@@ -133,6 +197,15 @@ class MonedaService {
       return list;
     } catch (e) {
       debugPrint('Error fetching recent transactions: $e');
+      if (cachedRecentTransactions != null) {
+        return cachedRecentTransactions!.map((raw) {
+          if (raw['type'] == 'income') {
+            return TransactionItem.fromIncome(raw);
+          } else {
+            return TransactionItem.fromExpense(raw);
+          }
+        }).toList();
+      }
       return [];
     }
   }
@@ -239,9 +312,20 @@ class MonedaService {
     }
   }
 
-  /// Lấy danh sách title (Nội dung chi tiết) từng nhập trong expenses để gợi ý nhanh
-  Future<List<String>> getExpenseTitleSuggestions() async {
-    final defaultTitles = [
+  /// Lấy danh sách title (Nội dung chi tiết) theo Danh mục & Tần suất sử dụng nhiều nhất
+  Future<List<String>> getExpenseTitleSuggestions({String? category}) async {
+    final Map<String, List<String>> categoryDefaults = {
+      'ăn uống': ['Cơm trưa văn phòng', 'Cà phê sáng', 'Ăn tối'],
+      'hóa đơn & tiện ích': ['Nạp 4G Viettel Topup', 'Tiền điện nước', 'Internet'],
+      'hàng tạp hoá': ['Kem đánh răng', 'Xà phòng tắm', 'Mua đồ siêu thị'],
+      'di chuyển': ['Xăng xe đi lại', 'Grab / Taxi', 'Bảo dưỡng xe'],
+      'mua sắm': ['Quần áo thời trang', 'Mua sắm trực tuyến', 'Đồ công nghệ'],
+      'giải trí': ['Xem phim rạp', 'Chơi game', 'Du lịch cuối tuần'],
+      'sức khỏe': ['Mua thuốc tây', 'Khám sức khỏe', 'Tập gym / Yoga'],
+      'giáo dục': ['Mua sách vở', 'Khóa học online', 'Học phí'],
+    };
+
+    final defaultFallback = [
       'Cơm trưa văn phòng',
       'Cà phê sáng',
       'Nạp 4G Viettel Topup',
@@ -253,28 +337,81 @@ class MonedaService {
     try {
       final response = await _client
           .from('expenses')
-          .select('title')
-          .order('transaction_date', ascending: false)
-          .limit(30);
+          .select('title, category, transaction_date');
 
-      final Set<String> uniqueTitles = {};
+      final rows = List<Map<String, dynamic>>.from(response);
+      final normalizedCat = category?.trim().toLowerCase();
 
-      for (final item in response as List<dynamic>) {
-        final title = (item['title'] as String?)?.trim();
-        if (title != null && title.isNotEmpty) {
-          uniqueTitles.add(title);
+      final filteredRows = rows.where((row) {
+        if (normalizedCat == null || normalizedCat.isEmpty) return true;
+        final rowCat = (row['category'] as String?)?.trim().toLowerCase();
+        return rowCat == normalizedCat;
+      }).toList();
+
+      if (filteredRows.isEmpty) {
+        if (normalizedCat != null && categoryDefaults.containsKey(normalizedCat)) {
+          return categoryDefaults[normalizedCat]!;
+        }
+        return defaultFallback;
+      }
+
+      // Gom nhóm theo title, đếm số lần sử dụng và ngày gần nhất
+      final Map<String, int> frequencyMap = {};
+      final Map<String, DateTime> latestDateMap = {};
+
+      for (final row in filteredRows) {
+        final title = (row['title'] as String?)?.trim();
+        if (title == null || title.isEmpty) continue;
+
+        frequencyMap[title] = (frequencyMap[title] ?? 0) + 1;
+
+        final dateRaw = row['transaction_date'];
+        final date = dateRaw != null
+            ? DateTime.tryParse(dateRaw.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0)
+            : DateTime.fromMillisecondsSinceEpoch(0);
+
+        if (!latestDateMap.containsKey(title) || date.isAfter(latestDateMap[title]!)) {
+          latestDateMap[title] = date;
         }
       }
 
-      for (final def in defaultTitles) {
-        uniqueTitles.add(def);
+      final titles = frequencyMap.keys.toList();
+      titles.sort((a, b) {
+        final freqA = frequencyMap[a]!;
+        final freqB = frequencyMap[b]!;
+        if (freqA != freqB) {
+          return freqB.compareTo(freqA); // Số lần sử dụng giảm dần (nhiều nhất lên đầu)
+        }
+        final dateA = latestDateMap[a] ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final dateB = latestDateMap[b] ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return dateB.compareTo(dateA); // Ưu tiên giao dịch mới nhất gần đây
+      });
+
+      final result = <String>[...titles];
+      final defaults = (normalizedCat != null && categoryDefaults.containsKey(normalizedCat))
+          ? categoryDefaults[normalizedCat]!
+          : defaultFallback;
+
+      for (final def in defaults) {
+        if (!result.contains(def)) {
+          result.add(def);
+        }
       }
 
-      return uniqueTitles.toList();
+      return result;
     } catch (e) {
       debugPrint('Error fetching expense titles: $e');
-      return defaultTitles;
+      final normalizedCat = category?.trim().toLowerCase();
+      if (normalizedCat != null && categoryDefaults.containsKey(normalizedCat)) {
+        return categoryDefaults[normalizedCat]!;
+      }
+      return defaultFallback;
     }
+  }
+
+  /// Alias gợi ý nội dung chi tiết theo danh mục
+  Future<List<String>> getExpenseTitleSuggestionsByCategory(String category) {
+    return getExpenseTitleSuggestions(category: category);
   }
 
   /// Thêm giao dịch Nhận tiền vào hũ
@@ -350,6 +487,10 @@ class MonedaService {
       await _client.from('app_settings').update({
         'total_balance': settings.totalBalance + amount,
       }).eq('id', 1);
+
+      cachedMonthlyReports.clear();
+      cachedRecentTransactions = null;
+      await _refreshHomeCache();
     } catch (e) {
       debugPrint('Error adding income: $e');
       rethrow;
@@ -389,6 +530,10 @@ class MonedaService {
       await _client.from('app_settings').update({
         'total_balance': settings.totalBalance - amount,
       }).eq('id', 1);
+
+      cachedMonthlyReports.clear();
+      cachedRecentTransactions = null;
+      await _refreshHomeCache();
     } catch (e) {
       debugPrint('Error adding expense: $e');
       rethrow;
@@ -411,6 +556,8 @@ class MonedaService {
         'want_ratio': wantRatio,
         'save_ratio': saveRatio,
       }).eq('id', 1);
+
+      await _refreshHomeCache();
     } catch (e) {
       debugPrint('Error updating jar ratios: $e');
       rethrow;
@@ -449,6 +596,8 @@ class MonedaService {
           'updated_at': nowIso,
         }).eq('jar_type', to),
       ]);
+
+      await _refreshHomeCache();
     } catch (e) {
       debugPrint('Error transferring between jars: $e');
       rethrow;
@@ -505,6 +654,9 @@ class MonedaService {
       await _client.from('app_settings').update({
         'last_rollover_month': currentMonth,
       }).eq('id', 1);
+
+      cachedMonthlyReports.clear();
+      await _refreshHomeCache();
     } catch (e) {
       debugPrint('Error executing rollover: $e');
       rethrow;
@@ -591,6 +743,16 @@ class MonedaService {
       await _client.from('app_settings').update({
         'total_balance': settings.totalBalance + amount,
       }).eq('id', 1);
+
+      cachedMonthlyReports.clear();
+      cachedRecentTransactions = null;
+      if (goalId != null) {
+        cachedSavingGoals = null;
+      }
+      await _refreshHomeCache();
+      if (goalId != null) {
+        await _refreshGoalsCache();
+      }
     } catch (e) {
       debugPrint('Error deleting expense: $e');
       rethrow;
@@ -665,6 +827,10 @@ class MonedaService {
       await _client.from('app_settings').update({
         'total_balance': settings.totalBalance - amount,
       }).eq('id', 1);
+
+      cachedMonthlyReports.clear();
+      cachedRecentTransactions = null;
+      await _refreshHomeCache();
     } catch (e) {
       debugPrint('Error deleting income: $e');
       rethrow;
@@ -748,6 +914,14 @@ class MonedaService {
         );
       }
 
+      final monthKey = DateFormat('yyyy-MM').format(DateTime(year, month, 1));
+      cachedMonthlyReports[monthKey] = {
+        'month': month,
+        'year': year,
+        'monthly_income': monthlyIncome,
+        'all_expenses': allExpenses,
+      };
+
       return MonthlyReportData(
         month: month,
         year: year,
@@ -807,9 +981,14 @@ class MonedaService {
           .from('saving_goals')
           .select('*')
           .order('created_at', ascending: true);
-      return List<Map<String, dynamic>>.from(response);
+      final list = List<Map<String, dynamic>>.from(response);
+      cachedSavingGoals = list;
+      return list;
     } catch (e) {
       debugPrint('Error fetching saving goals: $e');
+      if (cachedSavingGoals != null) {
+        return cachedSavingGoals!;
+      }
       return [];
     }
   }
@@ -847,6 +1026,9 @@ class MonedaService {
         };
         await _client.from('saving_goals').update(data).eq('id', id);
       }
+
+      cachedSavingGoals = null;
+      await _refreshGoalsCache();
     } catch (e) {
       debugPrint('Error creating or updating saving goal: $e');
       rethrow;
@@ -881,6 +1063,11 @@ class MonedaService {
 
       // Xóa bản ghi trong saving_goals
       await _client.from('saving_goals').delete().eq('id', goalId);
+
+      cachedMonthlyReports.clear();
+      cachedSavingGoals = null;
+      await _refreshHomeCache();
+      await _refreshGoalsCache();
     } catch (e) {
       debugPrint('Error deleting saving goal: $e');
       rethrow;
@@ -942,9 +1129,31 @@ class MonedaService {
         'goal_id': goalId,
         'transaction_date': nowIso,
       });
+
+      cachedMonthlyReports.clear();
+      cachedRecentTransactions = null;
+      cachedSavingGoals = null;
+      await _refreshHomeCache();
+      await _refreshGoalsCache();
     } catch (e) {
       debugPrint('Error transferring from SAVE to goal: $e');
       rethrow;
     }
+  }
+
+  Future<void> _refreshHomeCache() async {
+    try {
+      await Future.wait([
+        getAppSettings(),
+        getJars(),
+        getRecentTransactions(),
+      ]);
+    } catch (_) {}
+  }
+
+  Future<void> _refreshGoalsCache() async {
+    try {
+      await getSavingGoals();
+    } catch (_) {}
   }
 }
