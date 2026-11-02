@@ -4,6 +4,7 @@ import '../core/utils/currency_formatter.dart';
 import '../models/app_settings.dart';
 import '../models/jar.dart';
 import '../services/moneda_service.dart';
+import '../utils/moneda_validator.dart';
 import 'mb_feedback.dart';
 
 /// Modal Cài đặt Moneda (chuẩn phong cách MB Bank)
@@ -71,7 +72,12 @@ class _SettingsModalState extends State<SettingsModal> {
       widget.jars[_fromJar]?.balance ?? 0.0;
 
   bool get _canTransfer {
-    return _fromJar != _toJar && _transferAmount > 0;
+    return MonedaValidator.validateInternalTransfer(
+      fromJar: _fromJar,
+      toJar: _toJar,
+      amount: _transferAmount,
+      fromJarBalance: _fromJarBalance,
+    ) == null;
   }
 
   @override
@@ -306,11 +312,16 @@ class _SettingsModalState extends State<SettingsModal> {
           color: AppColors.primaryBlue,
           onChanged: (val) {
             setState(() {
-              _needRatio = val.roundToDouble();
-              if (_needRatio + _wantRatio > 100) {
-                _wantRatio = 100 - _needRatio;
-              }
-              _saveRatio = (100 - _needRatio - _wantRatio).clamp(0, 100);
+              final balanced = MonedaValidator.autoBalanceSliders(
+                changedJar: 'NEED',
+                newValue: val.round(),
+                currentNeed: _needRatio.round(),
+                currentWant: _wantRatio.round(),
+                currentSave: _saveRatio.round(),
+              );
+              _needRatio = balanced['need']!.toDouble();
+              _wantRatio = balanced['want']!.toDouble();
+              _saveRatio = balanced['save']!.toDouble();
             });
           },
         ),
@@ -323,11 +334,16 @@ class _SettingsModalState extends State<SettingsModal> {
           color: AppColors.lightBlue,
           onChanged: (val) {
             setState(() {
-              _wantRatio = val.roundToDouble();
-              if (_needRatio + _wantRatio > 100) {
-                _needRatio = 100 - _wantRatio;
-              }
-              _saveRatio = (100 - _needRatio - _wantRatio).clamp(0, 100);
+              final balanced = MonedaValidator.autoBalanceSliders(
+                changedJar: 'WANT',
+                newValue: val.round(),
+                currentNeed: _needRatio.round(),
+                currentWant: _wantRatio.round(),
+                currentSave: _saveRatio.round(),
+              );
+              _needRatio = balanced['need']!.toDouble();
+              _wantRatio = balanced['want']!.toDouble();
+              _saveRatio = balanced['save']!.toDouble();
             });
           },
         ),
@@ -340,11 +356,16 @@ class _SettingsModalState extends State<SettingsModal> {
           color: AppColors.saveGray,
           onChanged: (val) {
             setState(() {
-              _saveRatio = val.roundToDouble();
-              if (_needRatio + _saveRatio > 100) {
-                _needRatio = 100 - _saveRatio;
-              }
-              _wantRatio = (100 - _needRatio - _saveRatio).clamp(0, 100);
+              final balanced = MonedaValidator.autoBalanceSliders(
+                changedJar: 'SAVE',
+                newValue: val.round(),
+                currentNeed: _needRatio.round(),
+                currentWant: _wantRatio.round(),
+                currentSave: _saveRatio.round(),
+              );
+              _needRatio = balanced['need']!.toDouble();
+              _wantRatio = balanced['want']!.toDouble();
+              _saveRatio = balanced['save']!.toDouble();
             });
           },
         ),

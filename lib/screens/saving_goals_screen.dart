@@ -6,6 +6,7 @@ import '../models/app_settings.dart';
 import '../models/jar.dart';
 import '../models/saving_goal.dart';
 import '../services/moneda_service.dart';
+import '../utils/moneda_validator.dart';
 import '../widgets/mb_feedback.dart';
 import '../widgets/moneda_bottom_bar.dart';
 import 'payment_screen.dart';
@@ -876,7 +877,10 @@ class _AddOrEditGoalDialogState extends State<_AddOrEditGoalDialog> {
       CurrencyFormatter.parseRawAmount(_amountController.text);
 
   bool get _canSubmit {
-    return _nameController.text.trim().isNotEmpty && _targetAmount > 0;
+    return MonedaValidator.validateSavingGoal(
+      goalName: _nameController.text,
+      targetAmount: _targetAmount,
+    ) == null;
   }
 
   @override
@@ -1249,10 +1253,11 @@ class _TransferToGoalDialogState extends State<_TransferToGoalDialog> {
   bool get _isExceeded => _amount > widget.saveBalance;
 
   bool get _canSubmit {
-    return _selectedGoal != null &&
-        _amount > 0 &&
-        !_isExceeded &&
-        widget.saveBalance > 0;
+    return MonedaValidator.validateGoalDeposit(
+      goalId: _selectedGoal?.id,
+      amount: _amount,
+      saveJarBalance: widget.saveBalance,
+    ) == null;
   }
 
   @override
@@ -1826,7 +1831,11 @@ class _WithdrawFromGoalDialogState extends State<_WithdrawFromGoalDialog> {
   bool get _isExceeded => _amount > widget.goal.currentAmount;
 
   bool get _canSubmit {
-    return _amount > 0 && !_isExceeded && widget.goal.currentAmount > 0;
+    return MonedaValidator.validateGoalWithdraw(
+      targetJar: _selectedTargetJar,
+      amount: _amount,
+      goalCurrentAmount: widget.goal.currentAmount,
+    ) == null;
   }
 
   @override

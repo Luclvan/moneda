@@ -5,6 +5,7 @@ import '../core/utils/currency_formatter.dart';
 import '../models/app_settings.dart';
 import '../models/jar.dart';
 import '../services/moneda_service.dart';
+import '../utils/moneda_validator.dart';
 import '../widgets/mb_feedback.dart';
 
 /// Màn hình Nhận tiền vào hũ (chuẩn phong cách MB Bank)
@@ -40,9 +41,15 @@ class _ReceiveMoneyScreenState extends State<ReceiveMoneyScreen> {
   double get _currentAmount =>
       CurrencyFormatter.parseRawAmount(_amountController.text);
 
-  bool get _canSubmit {
-    return _sourceController.text.trim().isNotEmpty && _currentAmount > 0;
+  bool get _isFormValid {
+    return MonedaValidator.validateIncome(
+      sourceName: _sourceController.text,
+      amount: _currentAmount,
+      targetJar: _selectedJar,
+    ) == null;
   }
+
+  bool get _canSubmit => _isFormValid;
 
   @override
   void initState() {
@@ -282,11 +289,26 @@ class _ReceiveMoneyScreenState extends State<ReceiveMoneyScreen> {
     final sourceName = _sourceController.text.trim();
     final targetJar = _selectedJar;
 
+    final needRatio = _settings?.needRatio ?? 50;
+    final wantRatio = _settings?.wantRatio ?? 30;
+    final saveRatio = _settings?.saveRatio ?? 20;
+
+    final allocation = MonedaValidator.calculateIncomeAllocation(
+      amount: amount,
+      targetJar: targetJar,
+      needRatio: needRatio,
+      wantRatio: wantRatio,
+      saveRatio: saveRatio,
+    );
+
     try {
       await _monedaService.addIncome(
         targetJar: targetJar,
         sourceName: sourceName,
         amount: amount,
+        allocatedNeed: allocation['need'],
+        allocatedWant: allocation['want'],
+        allocatedSave: allocation['save'],
       );
 
       if (!mounted) return;
@@ -474,23 +496,18 @@ class _ReceiveMoneyScreenState extends State<ReceiveMoneyScreen> {
     final wantRatio = _settings?.wantRatio ?? 30;
     final saveRatio = _settings?.saveRatio ?? 20;
 
-    // Tính toán dự tính phân bổ thời gian thực
+    // Tính toán dự tính phân bổ thời gian thực qua MonedaValidator
     final amount = _currentAmount;
-    double allocatedNeed = 0;
-    double allocatedWant = 0;
-    double allocatedSave = 0;
-
-    if (_selectedJar == 'ALL_SPLIT') {
-      allocatedNeed = (amount * (needRatio / 100.0)).roundToDouble();
-      allocatedWant = (amount * (wantRatio / 100.0)).roundToDouble();
-      allocatedSave = amount - allocatedNeed - allocatedWant;
-    } else if (_selectedJar == 'NEED') {
-      allocatedNeed = amount;
-    } else if (_selectedJar == 'WANT') {
-      allocatedWant = amount;
-    } else if (_selectedJar == 'SAVE') {
-      allocatedSave = amount;
-    }
+    final allocation = MonedaValidator.calculateIncomeAllocation(
+      amount: amount,
+      targetJar: _selectedJar,
+      needRatio: needRatio,
+      wantRatio: wantRatio,
+      saveRatio: saveRatio,
+    );
+    final allocatedNeed = allocation['need'] ?? 0.0;
+    final allocatedWant = allocation['want'] ?? 0.0;
+    final allocatedSave = allocation['save'] ?? 0.0;
 
     // Tiêu đề Trường 1
     String jarTopLabel;
@@ -596,13 +613,13 @@ class _ReceiveMoneyScreenState extends State<ReceiveMoneyScreen> {
               ),
               const SizedBox(width: 12),
 
-              // Nút Tiếp tục (ràng buộc trạng thái)
+              // Nút Tiếp tục (ràng buộc trạng thái _isFormValid)
               Expanded(
                 flex: 2,
                 child: SizedBox(
                   height: 48,
                   child: ElevatedButton(
-                    onPressed: _canSubmit && !_isSubmitting
+                    onPressed: _isFormValid && !_isSubmitting
                         ? _handleSubmit
                         : null,
                     style: ElevatedButton.styleFrom(
