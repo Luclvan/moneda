@@ -254,13 +254,7 @@ class MonedaService {
 
       final Set<String> uniqueSources = {};
 
-      for (final item in sourcesList) {
-        final name = (item['source_name'] as String?)?.trim();
-        if (name != null && name.isNotEmpty) {
-          uniqueSources.add(name);
-        }
-      }
-
+      // 1. Ưu tiên các nguồn thu từ giao dịch incomes gần đây nhất
       for (final item in incomesList) {
         final name = (item['source_name'] as String?)?.trim();
         if (name != null && name.isNotEmpty) {
@@ -268,6 +262,15 @@ class MonedaService {
         }
       }
 
+      // 2. Thêm các nguồn thu đã lưu trong bảng income_sources
+      for (final item in sourcesList) {
+        final name = (item['source_name'] as String?)?.trim();
+        if (name != null && name.isNotEmpty) {
+          uniqueSources.add(name);
+        }
+      }
+
+      // 3. Thêm các nguồn thu mặc định
       for (final item in defaultSources) {
         uniqueSources.add(item);
       }
@@ -295,15 +298,19 @@ class MonedaService {
           .from('expenses')
           .select('category')
           .order('transaction_date', ascending: false)
-          .limit(30);
+          .limit(100);
 
-      final Set<String> uniqueCategories = Set.from(defaultCategories);
+      final Set<String> uniqueCategories = {};
 
       for (final item in response as List<dynamic>) {
         final cat = (item['category'] as String?)?.trim();
         if (cat != null && cat.isNotEmpty) {
           uniqueCategories.add(cat);
         }
+      }
+
+      for (final item in defaultCategories) {
+        uniqueCategories.add(item);
       }
 
       return uniqueCategories.toList();
@@ -338,7 +345,8 @@ class MonedaService {
     try {
       final response = await _client
           .from('expenses')
-          .select('title, category, transaction_date');
+          .select('title, category, transaction_date')
+          .order('transaction_date', ascending: false);
 
       final rows = List<Map<String, dynamic>>.from(response);
       final normalizedCat = category?.trim().toLowerCase();
@@ -477,6 +485,27 @@ class MonedaService {
           'balance': currentBalance + amount,
           'updated_at': nowIso,
         }).eq('jar_type', cleanJar);
+      }
+
+      // Tự động lưu nguồn thu nhập mới vào bảng income_sources nếu chưa có
+      final trimmedSource = sourceName.trim();
+      if (trimmedSource.isNotEmpty) {
+        try {
+          final existing = await _client
+              .from('income_sources')
+              .select('id')
+              .ilike('source_name', trimmedSource)
+              .maybeSingle();
+
+          if (existing == null) {
+            await _client.from('income_sources').insert({
+              'source_name': trimmedSource,
+              'is_deleted': false,
+            });
+          }
+        } catch (e) {
+          debugPrint('Notice checking/inserting income_source: $e');
+        }
       }
 
       // Lưu bản ghi vào bảng incomes
@@ -914,6 +943,50 @@ class MonedaService {
     required int month,
     required int year,
   }) async {
+    final monthKey = DateFormat('yyyy-MM').format(DateTime(year, month, 1));
+    if (hasMonthlyReportCache(monthKey) && cachedSettings != null) {
+      final cache = cachedMonthlyReports[monthKey]!;
+      final settings = AppSettings.fromJson(cachedSettings!);
+      final monthlyIncome = (cache['monthly_income'] as num?)?.toDouble() ?? 0.0;
+      final allExpenses = List<Map<String, dynamic>>.from(cache['all_expenses'] as List? ?? []);
+      final jarRatios = {
+        'NEED': settings.needRatio,
+        'WANT': settings.wantRatio,
+        'SAVE': settings.saveRatio,
+      };
+      final Map<String, JarReport> jarsMap = {};
+      for (final jarType in ['NEED', 'WANT', 'SAVE']) {
+        final ratio = jarRatios[jarType] ?? 0;
+        final jarExpenses = allExpenses
+            .where((e) =>
+                (e['jar_type'] as String? ?? '').toUpperCase() == jarType)
+            .toList();
+        final actualAmount = jarExpenses.fold<double>(
+          0.0,
+          (sum, e) => sum + ((e['amount'] as num?)?.toDouble() ?? 0.0),
+        );
+        final targetAmount =
+            monthlyIncome > 0 ? monthlyIncome * (ratio / 100.0) : 0.0;
+        final actualPercent =
+            monthlyIncome > 0 ? (actualAmount / monthlyIncome) * 100.0 : 0.0;
+        jarsMap[jarType] = JarReport(
+          jarType: jarType,
+          ratio: ratio,
+          targetAmount: targetAmount,
+          actualAmount: actualAmount,
+          actualPercent: actualPercent,
+          expenses: jarExpenses,
+        );
+      }
+      return MonthlyReportData(
+        month: month,
+        year: year,
+        monthlyIncome: monthlyIncome,
+        jars: jarsMap,
+        allExpenses: allExpenses,
+      );
+    }
+
     try {
       final startOfMonth = DateTime(year, month, 1);
       final endOfMonth = DateTime(year, month + 1, 0, 23, 59, 59, 999);

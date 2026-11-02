@@ -4,6 +4,7 @@ import 'package:moneda/models/app_settings.dart';
 import 'package:moneda/models/jar.dart';
 import 'package:moneda/screens/payment_screen.dart';
 import 'package:moneda/screens/receive_money_screen.dart';
+import 'package:moneda/screens/report_screen.dart';
 import 'package:moneda/screens/saving_goals_screen.dart';
 import 'package:moneda/services/moneda_service.dart';
 import 'package:moneda/utils/moneda_validator.dart';
@@ -545,6 +546,69 @@ void main() {
         find.widgetWithText(ElevatedButton, 'Lưu mục tiêu'),
       );
       expect(saveBtnValid.onPressed, isNotNull);
+    });
+
+    testWidgets('ReportScreen: Mặc định đóng thẻ danh mục, bấm để mở và đóng lại khi chuyển hũ',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      MonedaService.cachedSettings = {
+        'id': 1,
+        'total_balance': 15000000.0,
+        'need_ratio': 50,
+        'want_ratio': 30,
+        'save_ratio': 20,
+      };
+      MonedaService.cachedMonthlyReports['2026-10'] = {
+        'month': 10,
+        'year': 2026,
+        'monthly_income': 15000000.0,
+        'all_expenses': [
+          {
+            'id': 101,
+            'jar_type': 'NEED',
+            'category': 'Ăn uống',
+            'title': 'Cơm trưa văn phòng',
+            'amount': 50000.0,
+            'transaction_date': '2026-10-15T12:00:00Z',
+          },
+          {
+            'id': 102,
+            'jar_type': 'WANT',
+            'category': 'Giải trí',
+            'title': 'Xem phim CGV',
+            'amount': 200000.0,
+            'transaction_date': '2026-10-16T19:00:00Z',
+          },
+        ],
+      };
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: ReportScreen(initialMonth: 10, initialYear: 2026),
+        ),
+      );
+      await tester.pump();
+
+      // 1. Kiểm tra danh mục "Ăn uống" hiển thị nhưng các khoản chi bên trong mặc định đóng (collapsed)
+      expect(find.text('Ăn uống'), findsOneWidget);
+      expect(find.text('Cơm trưa văn phòng'), findsNothing);
+
+      // 2. Chạm vào thẻ "Ăn uống" để mở rộng
+      await tester.tap(find.text('Ăn uống'));
+      await tester.pumpAndSettle();
+
+      // Danh sách khoản chi bên trong đã hiển thị
+      expect(find.text('Cơm trưa văn phòng'), findsOneWidget);
+
+      // 3. Chuyển sang "Hũ WANT": thẻ danh mục của hũ mới phải tự động đóng
+      await tester.tap(find.text('Hũ WANT').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Giải trí'), findsOneWidget);
+      expect(find.text('Xem phim CGV'), findsNothing); // Đóng mặc định
     });
   });
 }
