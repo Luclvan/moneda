@@ -5,6 +5,7 @@ import '../core/utils/currency_formatter.dart';
 import '../models/app_settings.dart';
 import '../models/jar.dart';
 import '../services/moneda_service.dart';
+import '../utils/moneda_validator.dart';
 import '../widgets/mb_feedback.dart';
 
 /// Màn hình Thanh toán chi tiêu (chuẩn phong cách MB Bank)
@@ -48,12 +49,17 @@ class _PaymentScreenState extends State<PaymentScreen> {
     return _currentAmount > 0 && _currentAmount > _currentJarBalance;
   }
 
-  bool get _isFormValid {
-    return _categoryController.text.trim().isNotEmpty &&
-        _currentAmount > 0 &&
-        _currentAmount <= _currentJarBalance &&
-        _titleController.text.trim().isNotEmpty;
+  String? get _expenseValidationError {
+    return MonedaValidator.validateExpense(
+      jarType: _selectedJarType,
+      category: _categoryController.text,
+      amount: _currentAmount,
+      currentJarBalance: _currentJarBalance,
+      title: _titleController.text,
+    );
   }
+
+  bool get _isFormValid => _expenseValidationError == null;
 
   bool get _canSubmit => _isFormValid;
 
@@ -910,7 +916,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        'Số dư trong Hũ $_selectedJarType không đủ (${CurrencyFormatter.format(_currentJarBalance)})',
+                        '${MonedaValidator.validateExpense(jarType: _selectedJarType, category: _categoryController.text.isNotEmpty ? _categoryController.text : "Chi tiêu", amount: _currentAmount, currentJarBalance: _currentJarBalance, title: _titleController.text.isNotEmpty ? _titleController.text : "Chi tiết") ?? "Số dư trong Hũ $_selectedJarType không đủ"} (${CurrencyFormatter.format(_currentJarBalance)})',
                         style: const TextStyle(
                           color: AppColors.errorRed,
                           fontSize: 12,

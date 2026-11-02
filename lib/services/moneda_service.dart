@@ -7,6 +7,7 @@ import '../models/jar.dart';
 import '../models/monthly_report.dart';
 import '../models/saving_goal.dart';
 import '../models/transaction_item.dart';
+import '../utils/moneda_validator.dart';
 
 /// Dữ liệu tổng hợp cho Màn hình Trang chủ
 class HomeDashboardData {
@@ -421,25 +422,31 @@ class MonedaService {
     required String targetJar,
     required String sourceName,
     required double amount,
+    double? allocatedNeed,
+    double? allocatedWant,
+    double? allocatedSave,
   }) async {
     try {
       final settings = await getAppSettings();
       final jars = await getJars();
       final nowIso = DateTime.now().toIso8601String();
 
-      double allocatedNeed = 0.0;
-      double allocatedWant = 0.0;
-      double allocatedSave = 0.0;
-
       final isAllSplit = targetJar == 'ALL_SPLIT' || targetJar == 'ALL';
 
-      if (isAllSplit) {
-        allocatedNeed =
-            (amount * (settings.needRatio / 100.0)).roundToDouble();
-        allocatedWant =
-            (amount * (settings.wantRatio / 100.0)).roundToDouble();
-        allocatedSave = amount - allocatedNeed - allocatedWant;
+      if (allocatedNeed == null || allocatedWant == null || allocatedSave == null) {
+        final allocation = MonedaValidator.calculateIncomeAllocation(
+          amount: amount,
+          targetJar: isAllSplit ? 'ALL_SPLIT' : targetJar.toUpperCase(),
+          needRatio: settings.needRatio,
+          wantRatio: settings.wantRatio,
+          saveRatio: settings.saveRatio,
+        );
+        allocatedNeed = allocation['need'] ?? 0.0;
+        allocatedWant = allocation['want'] ?? 0.0;
+        allocatedSave = allocation['save'] ?? 0.0;
+      }
 
+      if (isAllSplit) {
         // Cập nhật số dư 3 hũ
         final newNeed = (jars['NEED']?.balance ?? 0) + allocatedNeed;
         final newWant = (jars['WANT']?.balance ?? 0) + allocatedWant;
@@ -853,11 +860,17 @@ class MonedaService {
       final currentWantBalance = jars['WANT']?.balance ?? 0.0;
       final currentSaveBalance = jars['SAVE']?.balance ?? 0.0;
 
-      if (currentNeedBalance < allocatedNeed ||
-          currentWantBalance < allocatedWant ||
-          currentSaveBalance < allocatedSave) {
-        throw Exception(
-            'Không thể xóa khoản thu nhập này vì số tiền trong hũ đã được chi tiêu!');
+      final validationError = MonedaValidator.validateDeleteIncome(
+        allocatedNeed: allocatedNeed,
+        allocatedWant: allocatedWant,
+        allocatedSave: allocatedSave,
+        currentNeedBalance: currentNeedBalance,
+        currentWantBalance: currentWantBalance,
+        currentSaveBalance: currentSaveBalance,
+      );
+
+      if (validationError != null) {
+        throw Exception(validationError);
       }
 
       // 2. Xóa bản ghi khỏi incomes

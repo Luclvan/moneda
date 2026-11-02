@@ -2,7 +2,7 @@ name: Flutter CI
 
 on:
   push:
-    branches: [ "main", "dev", "ui/**", "feat/**" ]
+    branches: [ "main", "dev", "ui/**", "feat/**", "test/**" ]
   pull_request:
     branches: [ "main", "dev" ]
 
