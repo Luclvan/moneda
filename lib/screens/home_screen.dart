@@ -184,39 +184,14 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         titleSpacing: 16,
-        title: Row(
-          children: [
-            const Text(
-              'MONEDA',
-              style: TextStyle(
-                color: AppColors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.1,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-              decoration: BoxDecoration(
-                color: const Color(0x33000000),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: AppColors.white.withValues(alpha: 0.22),
-                  width: 0.6,
-                ),
-              ),
-              child: const Text(
-                'MB STYLE',
-                style: TextStyle(
-                  color: AppColors.white,
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-          ],
+        title: const Text(
+          'MONEDA',
+          style: TextStyle(
+            color: AppColors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.1,
+          ),
         ),
         actions: [
           _buildCircleButton(

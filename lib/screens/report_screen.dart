@@ -91,14 +91,6 @@ class _ReportScreenState extends State<ReportScreen> {
         allExpenses: allExpenses,
       );
       _isLoading = false;
-
-      final currentJarExpenses = _reportData?.jars[_selectedJarType]?.expenses ?? const [];
-      if (currentJarExpenses.isNotEmpty && _expandedCategories.isEmpty) {
-        final firstCat = (currentJarExpenses.first['category'] as String?)?.trim();
-        if (firstCat != null && firstCat.isNotEmpty) {
-          _expandedCategories.add(firstCat);
-        }
-      }
     }
 
     _loadReport();
@@ -121,16 +113,6 @@ class _ReportScreenState extends State<ReportScreen> {
       setState(() {
         _reportData = data;
         _isLoading = false;
-
-        // Mặc định tự động mở danh mục đầu tiên nếu danh mục mở chưa có
-        final currentJarExpenses =
-            data.jars[_selectedJarType]?.expenses ?? const [];
-        if (currentJarExpenses.isNotEmpty && _expandedCategories.isEmpty) {
-          final firstCat = (currentJarExpenses.first['category'] as String?)?.trim();
-          if (firstCat != null && firstCat.isNotEmpty) {
-            _expandedCategories.add(firstCat);
-          }
-        }
       });
     } catch (e) {
       debugPrint('Error loading monthly report: $e');
@@ -740,14 +722,6 @@ class _ReportScreenState extends State<ReportScreen> {
         setState(() {
           _selectedJarType = jarType;
           _expandedCategories.clear();
-
-          // Tự động mở danh mục đầu tiên của hũ mới chọn nếu có
-          if (report.expenses.isNotEmpty) {
-            final firstCat = (report.expenses.first['category'] as String?)?.trim();
-            if (firstCat != null && firstCat.isNotEmpty) {
-              _expandedCategories.add(firstCat);
-            }
-          }
         });
       },
       borderRadius: BorderRadius.circular(16),
@@ -1045,20 +1019,35 @@ class _ReportScreenState extends State<ReportScreen> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      Icon(
-                        isExpanded
-                            ? Icons.keyboard_arrow_up_rounded
-                            : Icons.keyboard_arrow_down_rounded,
-                        color: AppColors.textMuted,
-                        size: 22,
+                      AnimatedRotation(
+                        turns: isExpanded ? 0.5 : 0.0,
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeInOutCubic,
+                        child: const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: AppColors.textMuted,
+                          size: 22,
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
 
-              // Danh sách xổ dọc (Accordion) bên dưới dòng Category
-              if (isExpanded) ...[
+              // Danh sách xổ dọc (Accordion) bên dưới dòng Category với Animation mượt mà
+              ClipRect(
+                child: AnimatedSize(
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeInOutCubic,
+                  alignment: Alignment.topCenter,
+                  child: isExpanded
+                      ? AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 280),
+                          switchInCurve: Curves.easeInOutCubic,
+                          switchOutCurve: Curves.easeInOutCubic,
+                          child: Column(
+                            key: ValueKey('expanded_${category}_${list.length}'),
+                            children: [
                 const Divider(
                   height: 1,
                   thickness: 0.8,
@@ -1159,6 +1148,11 @@ class _ReportScreenState extends State<ReportScreen> {
                   },
                 ),
               ],
+            ),
+          )
+        : const SizedBox(width: double.infinity, height: 0),
+  ),
+),
             ],
           ),
         );
