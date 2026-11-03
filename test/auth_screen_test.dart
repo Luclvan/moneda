@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneda/main.dart';
 import 'package:moneda/screens/auth_screen.dart';
 import 'package:moneda/screens/home_screen.dart';
 import 'package:moneda/screens/register_screen.dart';
+import 'package:moneda/services/biometric_service.dart';
 import 'package:moneda/services/moneda_service.dart';
 import 'package:moneda/utils/moneda_validator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -51,9 +53,34 @@ class MockAuthMonedaService extends MonedaService {
   }
 }
 
+class MockAuthBiometricService extends BiometricService {
+  bool available = true;
+  bool enabled = false;
+  String? savedUser;
+  String? savedPass;
+
+  @override
+  Future<bool> isBiometricAvailable() async => available;
+
+  @override
+  Future<bool> isBiometricEnabled() async => enabled;
+
+  @override
+  Future<String?> getSavedUsername() async => savedUser;
+
+  @override
+  Future<Map<String, String>?> authenticateAndGetCredentials({
+    String reason = 'Xác thực Face ID / Vân tay để đăng nhập',
+  }) async {
+    if (!enabled) return null;
+    return {'username': savedUser ?? '', 'password': savedPass ?? ''};
+  }
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
   });
 
   group('MonedaValidator Auth & Inline Validation Tests', () {
@@ -279,6 +306,88 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets(
+        'Face ID button in State A shows warning toast when biometric is not enabled',
+        (tester) async {
+      final mockBio = MockAuthBiometricService()..enabled = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthScreen(
+            biometricService: mockBio,
+            forceFirstTime: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Find 50x50 biometric button
+      final bioBtnFinder = find.byIcon(Icons.face_unlock_rounded);
+      expect(bioBtnFinder, findsOneWidget);
+
+      await tester.tap(bioBtnFinder);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(
+        find.text('Vui lòng đăng nhập bằng mật khẩu và bật Face ID trong mục Cài đặt'),
+        findsOneWidget,
+      );
+
+      // Clean up toast timer
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets(
+        'Face ID button in State A logs in directly and goes to HomeScreen when enabled',
+        (tester) async {
+      final mockService = MockAuthMonedaService();
+      final mockBio = MockAuthBiometricService()
+        ..enabled = true
+        ..savedUser = 'levanluc'
+        ..savedPass = 'securepass123';
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthScreen(
+            monedaService: mockService,
+            biometricService: mockBio,
+            forceFirstTime: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final bioBtnFinder = find.byIcon(Icons.face_unlock_rounded);
+      await tester.tap(bioBtnFinder);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1500));
+      await tester.pumpAndSettle();
+
+      expect(mockService.lastSignedInUser, 'levanluc');
+      expect(mockService.lastSignedInPass, 'securepass123');
+      expect(find.byType(HomeScreen), findsOneWidget);
+    });
+
+    testWidgets(
+        'State A pre-fills username if BiometricService has saved username',
+        (tester) async {
+      final mockBio = MockAuthBiometricService()..savedUser = 'bio_user_123';
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthScreen(
+            biometricService: mockBio,
+            forceFirstTime: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('bio_user_123'), findsOneWidget);
+    });
   });
 
   group('AuthScreen Trạng thái B (Đăng nhập Lần 2+) Widget Tests', () {
@@ -348,6 +457,77 @@ void main() {
       expect(mockService.lastSignedInUser, 'levanluc');
       expect(mockService.lastSignedInPass, 'mypass123');
       expect(find.byType(HomeScreen), findsOneWidget);
+    });
+
+    testWidgets(
+        'Face ID button in State B logs in directly and goes to HomeScreen when enabled',
+        (tester) async {
+      final mockService = MockAuthMonedaService()
+        ..mockSavedUser = {
+          'username': 'levanluc',
+          'full_name': 'LÊ VĂN LỰC',
+        };
+      final mockBio = MockAuthBiometricService()
+        ..enabled = true
+        ..savedUser = 'levanluc'
+        ..savedPass = 'mypass123';
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthScreen(
+            monedaService: mockService,
+            biometricService: mockBio,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final bioBtn = find.byIcon(Icons.face_unlock_rounded);
+      expect(bioBtn, findsOneWidget);
+
+      await tester.tap(bioBtn);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1500));
+      await tester.pumpAndSettle();
+
+      expect(mockService.lastSignedInUser, 'levanluc');
+      expect(mockService.lastSignedInPass, 'mypass123');
+      expect(find.byType(HomeScreen), findsOneWidget);
+    });
+
+    testWidgets(
+        'Face ID button in State B shows warning toast when biometric is disabled',
+        (tester) async {
+      final mockService = MockAuthMonedaService()
+        ..mockSavedUser = {
+          'username': 'levanluc',
+          'full_name': 'LÊ VĂN LỰC',
+        };
+      final mockBio = MockAuthBiometricService()..enabled = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthScreen(
+            monedaService: mockService,
+            biometricService: mockBio,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final bioBtn = find.byIcon(Icons.face_unlock_rounded);
+      await tester.tap(bioBtn);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(
+        find.text('Vui lòng đăng nhập bằng mật khẩu và bật Face ID trong mục Cài đặt'),
+        findsOneWidget,
+      );
+
+      // Clean up toast timer
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
     });
   });
 

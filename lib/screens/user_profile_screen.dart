@@ -3,6 +3,7 @@ import '../core/constants/app_colors.dart';
 import '../services/moneda_service.dart';
 import '../utils/moneda_validator.dart';
 import '../widgets/mb_feedback.dart';
+import 'app_settings_screen.dart';
 
 /// Màn hình Hồ sơ người dùng
 class UserProfileScreen extends StatefulWidget {
@@ -473,35 +474,47 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 children: [
                   // Ô trái: Tăng cường bảo vệ
                   Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.backgroundGray,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppColors.borderGray,
-                          width: 1,
-                        ),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(
-                            Icons.shield_rounded,
-                            color: Color(0xFF64748B),
-                            size: 22,
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                AppSettingsScreen(monedaService: _service),
                           ),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Tăng cường bảo vệ',
-                              style: TextStyle(
-                                color: AppColors.textDark,
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.backgroundGray,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.borderGray,
+                            width: 1,
+                          ),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.shield_rounded,
+                              color: Color(0xFF64748B),
+                              size: 22,
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Tăng cường bảo vệ',
+                                style: TextStyle(
+                                  color: AppColors.textDark,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
