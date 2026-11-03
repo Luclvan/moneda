@@ -290,6 +290,7 @@ class _MbMenuDrawerState extends State<MbMenuDrawer> {
                 showMbTopToast(
                   context,
                   'Bạn đang sử dụng gói hội viên Moneda Basic miễn phí',
+                  isSuccess: false,
                 );
               },
             ),
@@ -335,7 +336,11 @@ class _MbMenuDrawerState extends State<MbMenuDrawer> {
                 ],
               ),
               onTap: () {
-                showMbTopToast(context, 'Ứng dụng đang hỗ trợ Tiếng Việt');
+                showMbTopToast(
+                  context,
+                  'Ứng dụng đang hỗ trợ Tiếng Việt',
+                  isSuccess: false,
+                );
               },
             ),
 

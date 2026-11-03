@@ -2,22 +2,18 @@ import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 import '../models/app_settings.dart';
 import '../models/jar.dart';
-import '../services/biometric_service.dart';
 import '../services/moneda_service.dart';
 import '../utils/moneda_validator.dart';
-import '../widgets/biometric_system_icon.dart';
 import '../widgets/mb_feedback.dart';
 import '../widgets/settings_modal.dart';
 
 /// Màn hình Cài đặt Moneda chuẩn phong cách MB Bank
 class AppSettingsScreen extends StatefulWidget {
   final MonedaService? monedaService;
-  final BiometricService? biometricService;
 
   const AppSettingsScreen({
     super.key,
     this.monedaService,
-    this.biometricService,
   });
 
   @override
@@ -26,9 +22,7 @@ class AppSettingsScreen extends StatefulWidget {
 
 class _AppSettingsScreenState extends State<AppSettingsScreen> {
   late final MonedaService _service;
-  late final BiometricService _biometricService;
 
-  bool _isBiometricEnabled = false;
   bool _isLoading = true;
 
   AppSettings? _settings;
@@ -38,13 +32,11 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
   void initState() {
     super.initState();
     _service = widget.monedaService ?? MonedaService();
-    _biometricService = widget.biometricService ?? BiometricService();
     _loadInitialState();
   }
 
   Future<void> _loadInitialState() async {
     try {
-      final bioEnabled = await _biometricService.isBiometricEnabled();
       if (_service.hasHomeCache) {
         _settings = AppSettings.fromJson(MonedaService.cachedSettings!);
         _jars = {
@@ -54,7 +46,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
       }
       if (!mounted) return;
       setState(() {
-        _isBiometricEnabled = bioEnabled;
         _isLoading = false;
       });
 
@@ -72,184 +63,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
         _isLoading = false;
       });
     }
-  }
-
-  String get _currentUsername {
-    final cached = MonedaService.cachedUserProfile?['username'] as String?;
-    if (cached != null && cached.isNotEmpty) return cached;
-    return MonedaService.lastLoginUsername ?? 'user';
-  }
-
-  Future<void> _onBiometricToggle(bool value) async {
-    if (value) {
-      // 1. Kiểm tra thiết bị có hỗ trợ không
-      final available = await _biometricService.isBiometricAvailable();
-      if (!available) {
-        if (!mounted) return;
-        showMbTopToast(
-          context,
-          'Thiết bị hoặc trình duyệt hiện tại không hỗ trợ Face ID / Vân tay',
-        );
-        setState(() => _isBiometricEnabled = false);
-        return;
-      }
-
-      // 2. Lấy mật khẩu từ session hoặc yêu cầu nhập
-      final savedPassword = MonedaService.lastLoginPassword;
-      if (savedPassword != null && savedPassword.isNotEmpty) {
-        final success = await _biometricService.enableBiometric(
-          username: _currentUsername,
-          password: savedPassword,
-        );
-        if (!mounted) return;
-        if (success) {
-          setState(() => _isBiometricEnabled = true);
-          showMbTopToast(context, 'Đã bật đăng nhập bằng Face ID / Vân tay');
-        } else {
-          setState(() => _isBiometricEnabled = false);
-        }
-      } else {
-        // Chưa có mật khẩu trong session -> hiển thị Dialog yêu cầu nhập mật khẩu
-        _showConfirmPasswordDialog();
-      }
-    } else {
-      await _biometricService.disableBiometric();
-      if (!mounted) return;
-      setState(() => _isBiometricEnabled = false);
-      showMbTopToast(context, 'Đã tắt đăng nhập bằng Face ID / Vân tay');
-    }
-  }
-
-  void _showConfirmPasswordDialog() {
-    final passwordController = TextEditingController();
-    bool obscure = true;
-    String? localError;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (dialogCtx, setDialogState) {
-          return AlertDialog(
-            backgroundColor: AppColors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: const Text(
-              'Xác nhận mật khẩu',
-              style: TextStyle(
-                color: AppColors.textDark,
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Vui lòng nhập mật khẩu tài khoản để kích hoạt đăng nhập nhanh bằng Face ID / Vân tay:',
-                  style: TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: passwordController,
-                  obscureText: obscure,
-                  style: const TextStyle(
-                    color: AppColors.textDark,
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Mật khẩu hiện tại',
-                    hintText: 'Nhập mật khẩu',
-                    errorText: localError,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        obscure
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        color: AppColors.textMuted,
-                        size: 20,
-                      ),
-                      onPressed: () => setDialogState(() => obscure = !obscure),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.borderGray),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: AppColors.primaryBlue,
-                        width: 1.5,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  setState(() => _isBiometricEnabled = false);
-                },
-                child: const Text(
-                  'Hủy',
-                  style: TextStyle(color: AppColors.textMuted),
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  final enteredPass = passwordController.text;
-                  if (enteredPass.isEmpty) {
-                    setDialogState(
-                      () => localError = 'Vui lòng nhập mật khẩu',
-                    );
-                    return;
-                  }
-
-                  Navigator.pop(ctx);
-                  final success = await _biometricService.enableBiometric(
-                    username: _currentUsername,
-                    password: enteredPass,
-                  );
-
-                  if (!mounted) return;
-                  if (success) {
-                    MonedaService.lastLoginPassword = enteredPass;
-                    setState(() => _isBiometricEnabled = true);
-                    showMbTopToast(
-                      context,
-                      'Đã bật đăng nhập bằng Face ID / Vân tay',
-                    );
-                  } else {
-                    setState(() => _isBiometricEnabled = false);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryBlue,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: const Text(
-                  'Kích hoạt',
-                  style: TextStyle(
-                    color: AppColors.white,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
   }
 
   void _openChangePasswordDialog() {
@@ -401,14 +214,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                   try {
                     await _service.updatePassword(newPass);
                     MonedaService.lastLoginPassword = newPass;
-
-                    // Nếu đang bật biometric thì cập nhật luôn bio_password
-                    if (_isBiometricEnabled) {
-                      await _biometricService.enableBiometric(
-                        username: _currentUsername,
-                        password: newPass,
-                      );
-                    }
 
                     if (!mounted) return;
                     showMbTopToast(context, 'Đã đổi mật khẩu thành công');
@@ -565,47 +370,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
               size: 22,
             ),
             onTap: _openChangePasswordDialog,
-          ),
-          const Divider(color: Color(0xFFF1F5F9), height: 1),
-
-          // 2. Đăng nhập bằng Face ID / Vân tay
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryBlue.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Center(
-                    child: BiometricSystemIcon(
-                      size: 20,
-                      color: AppColors.primaryBlue,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                const Expanded(
-                  child: Text(
-                    'Đăng nhập bằng Face ID / Vân tay',
-                    style: TextStyle(
-                      color: AppColors.textDark,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Switch(
-                  value: _isBiometricEnabled,
-                  onChanged: _onBiometricToggle,
-                  activeThumbColor: AppColors.primaryBlue,
-                  activeTrackColor: AppColors.primaryBlue.withValues(alpha: 0.35),
-                ),
-              ],
-            ),
           ),
         ],
       ),
