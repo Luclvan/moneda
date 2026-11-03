@@ -6,6 +6,7 @@ import '../models/app_settings.dart';
 import '../models/jar.dart';
 import '../services/moneda_service.dart';
 import '../utils/moneda_validator.dart';
+import '../widgets/floating_suggestions_field.dart';
 import '../widgets/mb_feedback.dart';
 
 /// Màn hình Nhận tiền vào hũ (chuẩn phong cách MB Bank)
@@ -36,7 +37,6 @@ class _ReceiveMoneyScreenState extends State<ReceiveMoneyScreen> {
   List<String> _suggestions = [];
   bool _isLoading = true;
   bool _isSubmitting = false;
-  bool _showSuggestionsDropdown = false;
 
   double get _currentAmount =>
       CurrencyFormatter.parseRawAmount(_amountController.text);
@@ -102,7 +102,6 @@ class _ReceiveMoneyScreenState extends State<ReceiveMoneyScreen> {
   void _onSourceSelected(String source) {
     setState(() {
       _sourceController.text = source;
-      _showSuggestionsDropdown = false;
     });
   }
 
@@ -524,14 +523,6 @@ class _ReceiveMoneyScreenState extends State<ReceiveMoneyScreen> {
       jarMainLabel = 'Chỉ vào Hũ $_selectedJar';
     }
 
-    // Danh sách gợi ý được lọc theo text nhập
-    final query = _sourceController.text.trim().toLowerCase();
-    final filteredSuggestions = query.isEmpty
-        ? _suggestions
-        : _suggestions
-            .where((item) => item.toLowerCase().contains(query))
-            .toList();
-
     return Scaffold(
       backgroundColor: AppColors.backgroundGray,
       // Top Bar nền trắng
@@ -735,117 +726,17 @@ class _ReceiveMoneyScreenState extends State<ReceiveMoneyScreen> {
             ),
             const SizedBox(height: 8),
 
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: AppColors.borderGray,
-                  width: 1,
-                ),
-              ),
-              child: TextField(
-                controller: _sourceController,
-                decoration: InputDecoration(
-                  hintText: 'Nhập hoặc chọn nguồn thu nhập',
-                  hintStyle: const TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 14,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  suffixIcon: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_sourceController.text.isNotEmpty)
-                        IconButton(
-                          icon: const Icon(
-                            Icons.cancel_rounded,
-                            color: AppColors.textMuted,
-                            size: 18,
-                          ),
-                          onPressed: () {
-                            _sourceController.clear();
-                          },
-                        ),
-                      IconButton(
-                        icon: Icon(
-                          _showSuggestionsDropdown
-                              ? Icons.keyboard_arrow_up_rounded
-                              : Icons.keyboard_arrow_down_rounded,
-                          color: AppColors.primaryBlue,
-                          size: 24,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _showSuggestionsDropdown =
-                                !_showSuggestionsDropdown;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            FloatingSuggestionsField(
+              controller: _sourceController,
+              hintText: 'Nhập hoặc chọn nguồn thu nhập',
+              suggestions: _suggestions,
+              itemIcon: Icons.history_rounded,
+              onChanged: (_) => setState(() {}),
+              onSelected: (val) {
+                _onSourceSelected(val);
+                setState(() {});
+              },
             ),
-
-            // Danh sách gợi ý nguồn thu nhập
-            if (_showSuggestionsDropdown && filteredSuggestions.isNotEmpty)
-              Container(
-                margin: const EdgeInsets.only(top: 8),
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppColors.borderGray,
-                    width: 1,
-                  ),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x0A000000),
-                      blurRadius: 10,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: filteredSuggestions.map((item) {
-                    return InkWell(
-                      onTap: () => _onSourceSelected(item),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.history_rounded,
-                              size: 18,
-                              color: AppColors.secondaryBlue,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                item,
-                                style: const TextStyle(
-                                  color: AppColors.textDark,
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
 
             const SizedBox(height: 20),
 

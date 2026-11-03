@@ -6,6 +6,7 @@ import '../models/app_settings.dart';
 import '../models/jar.dart';
 import '../services/moneda_service.dart';
 import '../utils/moneda_validator.dart';
+import '../widgets/floating_suggestions_field.dart';
 import '../widgets/mb_feedback.dart';
 
 /// Màn hình Thanh toán chi tiêu (chuẩn phong cách MB Bank)
@@ -36,8 +37,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   bool _isLoading = true;
   bool _isSubmitting = false;
-  bool _showCategoryDropdown = false;
-  bool _showTitleDropdown = false;
 
   double get _currentAmount =>
       CurrencyFormatter.parseRawAmount(_amountController.text);
@@ -494,22 +493,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
     if (_selectedJarType == 'WANT') currentRatio = wantRatio;
     if (_selectedJarType == 'SAVE') currentRatio = saveRatio;
 
-    // Lọc gợi ý Danh mục
-    final catQuery = _categoryController.text.trim().toLowerCase();
-    final filteredCategories = catQuery.isEmpty
-        ? _categorySuggestions
-        : _categorySuggestions
-            .where((item) => item.toLowerCase().contains(catQuery))
-            .toList();
-
-    // Lọc gợi ý Nội dung
-    final titleQuery = _titleController.text.trim().toLowerCase();
-    final filteredTitles = titleQuery.isEmpty
-        ? _titleSuggestions
-        : _titleSuggestions
-            .where((item) => item.toLowerCase().contains(titleQuery))
-            .toList();
-
     return Scaffold(
       backgroundColor: AppColors.backgroundGray,
       // Top Bar nền trắng
@@ -713,126 +696,20 @@ class _PaymentScreenState extends State<PaymentScreen> {
             ),
             const SizedBox(height: 8),
 
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: AppColors.borderGray,
-                  width: 1,
-                ),
-              ),
-              child: TextField(
-                controller: _categoryController,
-                onChanged: (val) {
-                  _onCategoryChanged(val);
-                },
-                decoration: InputDecoration(
-                  hintText: 'Chọn hoặc nhập danh mục (VD: Ăn uống, Mua sắm...)',
-                  hintStyle: const TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 14,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  suffixIcon: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_categoryController.text.isNotEmpty)
-                        IconButton(
-                          icon: const Icon(
-                            Icons.cancel_rounded,
-                            color: AppColors.textMuted,
-                            size: 18,
-                          ),
-                          onPressed: () {
-                            _categoryController.clear();
-                            _onCategoryChanged('');
-                          },
-                        ),
-                      IconButton(
-                        icon: Icon(
-                          _showCategoryDropdown
-                              ? Icons.keyboard_arrow_up_rounded
-                              : Icons.keyboard_arrow_down_rounded,
-                          color: AppColors.primaryBlue,
-                          size: 24,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _showCategoryDropdown = !_showCategoryDropdown;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            FloatingSuggestionsField(
+              controller: _categoryController,
+              hintText: 'Chọn hoặc nhập danh mục (VD: Ăn uống, Mua sắm...)',
+              suggestions: _categorySuggestions,
+              itemIcon: Icons.category_outlined,
+              onChanged: (cat) {
+                _onCategoryChanged(cat);
+                setState(() {});
+              },
+              onSelected: (cat) {
+                _onCategoryChanged(cat);
+                setState(() {});
+              },
             ),
-
-            // Dropdown gợi ý Danh mục chi tiêu
-            if (_showCategoryDropdown && filteredCategories.isNotEmpty)
-              Container(
-                margin: const EdgeInsets.only(top: 8),
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppColors.borderGray,
-                    width: 1,
-                  ),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x0A000000),
-                      blurRadius: 10,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: filteredCategories.map((cat) {
-                    return InkWell(
-                      onTap: () {
-                        setState(() {
-                          _categoryController.text = cat;
-                          _showCategoryDropdown = false;
-                        });
-                        _onCategoryChanged(cat);
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.category_outlined,
-                              size: 18,
-                              color: AppColors.secondaryBlue,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                cat,
-                                style: const TextStyle(
-                                  color: AppColors.textDark,
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
 
             const SizedBox(height: 20),
 
@@ -941,135 +818,25 @@ class _PaymentScreenState extends State<PaymentScreen> {
             ),
             const SizedBox(height: 8),
 
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: AppColors.borderGray,
-                  width: 1,
-                ),
-              ),
-              child: TextField(
-                controller: _titleController,
-                decoration: InputDecoration(
-                  hintText: 'VD: Cơm trưa, Nạp 4G Viettel, Xăng xe...',
-                  hintStyle: const TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 14,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  suffixIcon: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_titleController.text.isNotEmpty)
-                        IconButton(
-                          icon: const Icon(
-                            Icons.cancel_rounded,
-                            color: AppColors.textMuted,
-                            size: 18,
-                          ),
-                          onPressed: () {
-                            _titleController.clear();
-                          },
-                        ),
-                      IconButton(
-                        icon: Icon(
-                          _showTitleDropdown
-                              ? Icons.keyboard_arrow_up_rounded
-                              : Icons.keyboard_arrow_down_rounded,
-                          color: AppColors.primaryBlue,
-                          size: 24,
-                        ),
-                        onPressed: () async {
-                          if (!_showTitleDropdown) {
-                            final currentCat = _categoryController.text.trim();
-                            final titles = await _monedaService
-                                .getExpenseTitleSuggestions(
-                              category: currentCat.isEmpty ? null : currentCat,
-                            );
-                            if (mounted) {
-                              setState(() {
-                                _titleSuggestions = titles;
-                                _showTitleDropdown = true;
-                              });
-                              return;
-                            }
-                          }
-                          setState(() {
-                            _showTitleDropdown = !_showTitleDropdown;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            FloatingSuggestionsField(
+              controller: _titleController,
+              hintText: 'VD: Cơm trưa, Nạp 4G Viettel, Xăng xe...',
+              suggestions: _titleSuggestions,
+              itemIcon: Icons.history_rounded,
+              onChanged: (_) => setState(() {}),
+              onSelected: (_) => setState(() {}),
+              onTap: () async {
+                final currentCat = _categoryController.text.trim();
+                final titles = await _monedaService.getExpenseTitleSuggestions(
+                  category: currentCat.isEmpty ? null : currentCat,
+                );
+                if (mounted) {
+                  setState(() {
+                    _titleSuggestions = titles;
+                  });
+                }
+              },
             ),
-
-            // Dropdown gợi ý Nội dung chi tiết
-            if (_showTitleDropdown && filteredTitles.isNotEmpty)
-              Container(
-                margin: const EdgeInsets.only(top: 8),
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppColors.borderGray,
-                    width: 1,
-                  ),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x0A000000),
-                      blurRadius: 10,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: filteredTitles.map((title) {
-                    return InkWell(
-                      onTap: () {
-                        setState(() {
-                          _titleController.text = title;
-                          _showTitleDropdown = false;
-                        });
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.history_rounded,
-                              size: 18,
-                              color: AppColors.secondaryBlue,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                title,
-                                style: const TextStyle(
-                                  color: AppColors.textDark,
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
 
             const SizedBox(height: 32),
           ],
