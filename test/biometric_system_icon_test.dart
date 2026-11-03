@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneda/core/constants/app_colors.dart';
@@ -6,17 +5,16 @@ import 'package:moneda/widgets/biometric_system_icon.dart';
 
 void main() {
   group('BiometricSystemIcon Widget Tests', () {
-    testWidgets('renders Face ID Apple viewfinder on iOS theme or isFaceId=true',
+    testWidgets('renders AppleFaceIdPainter when forceFaceId is true',
         (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          themeMode: ThemeMode.light,
           home: Scaffold(
             body: Center(
               child: BiometricSystemIcon(
                 size: 32,
                 color: AppColors.primaryBlue,
-                isFaceId: true,
+                forceFaceId: true,
               ),
             ),
           ),
@@ -24,39 +22,37 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(CupertinoIcons.viewfinder), findsOneWidget);
-      expect(find.byIcon(Icons.face_unlock_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.fingerprint_rounded), findsNothing);
-    });
-
-    testWidgets('renders Face ID on iOS platform theme when isFaceId is null',
-        (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData(platform: TargetPlatform.iOS),
-          home: const Scaffold(
-            body: Center(
-              child: BiometricSystemIcon(size: 28),
-            ),
-          ),
-        ),
+      final customPaintFinder = find.descendant(
+        of: find.byType(BiometricSystemIcon),
+        matching: find.byType(CustomPaint),
       );
-      await tester.pumpAndSettle();
+      expect(customPaintFinder, findsOneWidget);
 
-      expect(find.byIcon(CupertinoIcons.viewfinder), findsOneWidget);
-      expect(find.byIcon(Icons.face_unlock_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.fingerprint_rounded), findsNothing);
+      final customPaint = tester.widget<CustomPaint>(customPaintFinder);
+      expect(customPaint.painter, isA<AppleFaceIdPainter>());
+
+      final painter = customPaint.painter as AppleFaceIdPainter;
+      expect(painter.color, AppColors.primaryBlue);
+
+      final sizedBoxFinder = find.descendant(
+        of: find.byType(BiometricSystemIcon),
+        matching: find.byType(SizedBox),
+      );
+      final sizedBox = tester.widget<SizedBox>(sizedBoxFinder);
+      expect(sizedBox.width, 32);
+      expect(sizedBox.height, 32);
     });
 
-    testWidgets('renders Fingerprint on Android platform theme or isFaceId=false',
+    testWidgets('renders SamsungFingerprintPainter when forceFaceId is false',
         (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
             body: Center(
               child: BiometricSystemIcon(
-                size: 32,
-                isFaceId: false,
+                size: 28,
+                color: Colors.green,
+                forceFaceId: false,
               ),
             ),
           ),
@@ -64,28 +60,37 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.fingerprint_rounded), findsOneWidget);
-      expect(find.byIcon(CupertinoIcons.viewfinder), findsNothing);
-      expect(find.byIcon(Icons.face_unlock_rounded), findsNothing);
+      final customPaintFinder = find.descendant(
+        of: find.byType(BiometricSystemIcon),
+        matching: find.byType(CustomPaint),
+      );
+      expect(customPaintFinder, findsOneWidget);
+
+      final customPaint = tester.widget<CustomPaint>(customPaintFinder);
+      expect(customPaint.painter, isA<SamsungFingerprintPainter>());
+
+      final painter = customPaint.painter as SamsungFingerprintPainter;
+      expect(painter.color, Colors.green);
     });
 
-    testWidgets('renders Fingerprint on Android platform theme when isFaceId is null',
+    testWidgets('renders vector paths without throwing any exceptions',
         (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData(platform: TargetPlatform.android),
-          home: const Scaffold(
-            body: Center(
-              child: BiometricSystemIcon(size: 28),
+        const MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                BiometricSystemIcon(size: 40, forceFaceId: true),
+                BiometricSystemIcon(size: 40, forceFaceId: false),
+              ],
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.fingerprint_rounded), findsOneWidget);
-      expect(find.byIcon(CupertinoIcons.viewfinder), findsNothing);
+      expect(find.byType(BiometricSystemIcon), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
     });
   });
 }
-
