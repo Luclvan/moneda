@@ -7,7 +7,7 @@ import '../services/moneda_service.dart';
 import '../utils/moneda_validator.dart';
 import 'mb_feedback.dart';
 
-/// Modal Cài đặt Moneda (chuẩn phong cách MB Bank)
+/// Modal Tiện ích Moneda
 class SettingsModal extends StatefulWidget {
   final AppSettings settings;
   final Map<String, Jar> jars;
@@ -182,7 +182,7 @@ class _SettingsModalState extends State<SettingsModal> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'Cài đặt Moneda',
+                    'Tiện ích',
                     style: TextStyle(
                       color: AppColors.primaryBlue,
                       fontSize: 18,

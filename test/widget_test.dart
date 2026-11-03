@@ -248,7 +248,7 @@ void main() {
       );
 
       // Kiểm tra tiêu đề và các Tab
-      expect(find.text('Cài đặt Moneda'), findsOneWidget);
+      expect(find.text('Tiện ích'), findsOneWidget);
       expect(find.text('Cài đặt tỷ lệ 3 hũ'), findsOneWidget);
       expect(find.text('Chuyển tiền nội bộ'), findsOneWidget);
 
