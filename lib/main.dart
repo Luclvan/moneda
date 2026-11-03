@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/config/supabase_config.dart';
 import 'core/constants/app_colors.dart';
+import 'screens/auth_screen.dart';
 import 'screens/home_screen.dart';
 
 void main() async {
@@ -31,6 +32,14 @@ void main() async {
 class MonedaApp extends StatelessWidget {
   const MonedaApp({super.key});
 
+  bool _isLoggedIn() {
+    try {
+      return Supabase.instance.client.auth.currentSession != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -57,7 +66,7 @@ class MonedaApp extends StatelessWidget {
           ),
         );
       },
-      home: const HomeScreen(),
+      home: _isLoggedIn() ? const HomeScreen() : const AuthScreen(),
     );
   }
 }
