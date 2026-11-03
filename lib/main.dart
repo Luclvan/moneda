@@ -54,14 +54,18 @@ class MonedaApp extends StatelessWidget {
         ),
       ),
       builder: (context, child) {
+        // Bọc GestureDetector hạ bàn phím số khi chạm ngoài trên iPhone thật
         // Bọc giao diện trong khung căn giữa chuẩn Mobile (maxWidth: 430px)
-        // Hiển thị chuẩn tỷ lệ iPhone trên cả Web và thiết bị di động
-        return Container(
-          color: kIsWeb ? const Color(0xFFE2E8F0) : AppColors.backgroundGray,
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 430),
-              child: child ?? const SizedBox.shrink(),
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+          child: Container(
+            color: kIsWeb ? const Color(0xFFE2E8F0) : AppColors.backgroundGray,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 430),
+                child: child ?? const SizedBox.shrink(),
+              ),
             ),
           ),
         );

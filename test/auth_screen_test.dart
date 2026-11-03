@@ -8,6 +8,7 @@ import 'package:moneda/screens/register_screen.dart';
 import 'package:moneda/services/biometric_service.dart';
 import 'package:moneda/services/moneda_service.dart';
 import 'package:moneda/utils/moneda_validator.dart';
+import 'package:moneda/widgets/biometric_system_icon.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MockAuthMonedaService extends MonedaService {
@@ -323,7 +324,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Find 50x50 biometric button
-      final bioBtnFinder = find.byIcon(Icons.face_unlock_rounded);
+      final bioBtnFinder = find.byType(BiometricSystemIcon);
       expect(bioBtnFinder, findsOneWidget);
 
       await tester.tap(bioBtnFinder);
@@ -360,7 +361,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final bioBtnFinder = find.byIcon(Icons.face_unlock_rounded);
+      final bioBtnFinder = find.byType(BiometricSystemIcon);
       await tester.tap(bioBtnFinder);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 1500));
@@ -409,7 +410,7 @@ void main() {
 
       expect(find.text('Xin chào,'), findsOneWidget);
       expect(find.text('LÊ VĂN LỰC'), findsOneWidget);
-      expect(find.byIcon(Icons.face_unlock_rounded), findsOneWidget);
+      expect(find.byType(BiometricSystemIcon), findsOneWidget);
       expect(find.text('Tên đăng nhập'), findsNothing); // Hidden in State B
       expect(find.text('Mật khẩu'), findsOneWidget);
       expect(find.text('Tài khoản khác'), findsOneWidget);
@@ -482,7 +483,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final bioBtn = find.byIcon(Icons.face_unlock_rounded);
+      final bioBtn = find.byType(BiometricSystemIcon);
       expect(bioBtn, findsOneWidget);
 
       await tester.tap(bioBtn);
@@ -515,7 +516,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final bioBtn = find.byIcon(Icons.face_unlock_rounded);
+      final bioBtn = find.byType(BiometricSystemIcon);
       await tester.tap(bioBtn);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));

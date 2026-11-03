@@ -5,6 +5,7 @@ import '../models/jar.dart';
 import '../services/biometric_service.dart';
 import '../services/moneda_service.dart';
 import '../utils/moneda_validator.dart';
+import '../widgets/biometric_system_icon.dart';
 import '../widgets/mb_feedback.dart';
 import '../widgets/settings_modal.dart';
 
@@ -579,10 +580,11 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                     color: AppColors.primaryBlue.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
-                    Icons.face_unlock_outlined,
-                    color: AppColors.primaryBlue,
-                    size: 20,
+                  child: const Center(
+                    child: BiometricSystemIcon(
+                      size: 20,
+                      color: AppColors.primaryBlue,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 14),
