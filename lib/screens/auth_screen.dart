@@ -4,6 +4,7 @@ import '../core/constants/app_colors.dart';
 import '../services/biometric_service.dart';
 import '../services/moneda_service.dart';
 import '../utils/moneda_validator.dart';
+import '../widgets/biometric_system_icon.dart';
 import '../widgets/mb_feedback.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
@@ -802,10 +803,9 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ),
                 child: const Center(
-                  child: Icon(
-                    Icons.face_unlock_rounded,
-                    color: AppColors.primaryBlue,
+                  child: BiometricSystemIcon(
                     size: 28,
+                    color: AppColors.primaryBlue,
                   ),
                 ),
               ),
@@ -1018,10 +1018,9 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
               ),
               child: const Center(
-                child: Icon(
-                  Icons.face_unlock_rounded,
-                  color: AppColors.primaryBlue,
+                child: BiometricSystemIcon(
                   size: 26,
+                  color: AppColors.primaryBlue,
                 ),
               ),
             ),
