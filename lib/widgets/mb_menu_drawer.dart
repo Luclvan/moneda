@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
+import '../screens/app_settings_screen.dart';
 import '../screens/auth_screen.dart';
 import '../screens/user_profile_screen.dart';
 import '../services/moneda_service.dart';
@@ -251,9 +252,12 @@ class _MbMenuDrawerState extends State<MbMenuDrawer> {
                 size: 22,
               ),
               onTap: () {
-                showMbTopToast(
+                Navigator.pop(context);
+                Navigator.push(
                   context,
-                  'Tính năng Cài đặt chi tiết sẽ sẵn sàng trong bản cập nhật tới',
+                  MaterialPageRoute(
+                    builder: (_) => AppSettingsScreen(monedaService: _service),
+                  ),
                 );
               },
             ),

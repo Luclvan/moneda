@@ -66,5 +66,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Moneda sử dụng Face ID / Touch ID để đăng nhập nhanh và bảo mật tài khoản của bạn.</string>
 </dict>
 </plist>

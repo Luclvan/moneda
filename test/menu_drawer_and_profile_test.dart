@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneda/models/app_settings.dart';
 import 'package:moneda/models/jar.dart';
+import 'package:moneda/screens/app_settings_screen.dart';
 import 'package:moneda/screens/auth_screen.dart';
 import 'package:moneda/screens/home_screen.dart';
 import 'package:moneda/screens/user_profile_screen.dart';
+import 'package:moneda/services/biometric_service.dart';
 import 'package:moneda/services/moneda_service.dart';
 import 'package:moneda/widgets/mb_menu_drawer.dart';
 import 'package:moneda/widgets/settings_modal.dart';
@@ -16,6 +19,26 @@ class MockProfileService extends MonedaService {
   String? updatedFullName;
   String? updatedPassword;
   bool signedOut = false;
+
+  @override
+  Future<AppSettings> getAppSettings() async {
+    return AppSettings(
+      id: 1,
+      totalBalance: 10000000,
+      needRatio: 50,
+      wantRatio: 30,
+      saveRatio: 20,
+    );
+  }
+
+  @override
+  Future<Map<String, Jar>> getJars() async {
+    return {
+      'NEED': Jar(jarType: 'NEED', balance: 5000000),
+      'WANT': Jar(jarType: 'WANT', balance: 3000000),
+      'SAVE': Jar(jarType: 'SAVE', balance: 2000000),
+    };
+  }
 
   @override
   Future<Map<String, dynamic>?> getUserProfile() async {
@@ -47,9 +70,53 @@ class MockProfileService extends MonedaService {
   }
 }
 
+class MockTestBiometricService extends BiometricService {
+  bool available = true;
+  bool enabled = false;
+  String? savedUser;
+  String? savedPass;
+
+  @override
+  Future<bool> isBiometricAvailable() async => available;
+
+  @override
+  Future<bool> isBiometricEnabled() async => enabled;
+
+  @override
+  Future<String?> getSavedUsername() async => savedUser;
+
+  @override
+  Future<bool> enableBiometric({
+    required String username,
+    required String password,
+  }) async {
+    if (!available) return false;
+    enabled = true;
+    savedUser = username;
+    savedPass = password;
+    return true;
+  }
+
+  @override
+  Future<void> disableBiometric() async {
+    enabled = false;
+    savedUser = null;
+    savedPass = null;
+  }
+
+  @override
+  Future<Map<String, String>?> authenticateAndGetCredentials({
+    String reason = 'Xác thực Face ID / Vân tay để đăng nhập',
+  }) async {
+    if (!enabled) return null;
+    return {'username': savedUser ?? '', 'password': savedPass ?? ''};
+  }
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
   });
 
   group('SettingsModal Title Check', () {
@@ -335,6 +402,403 @@ void main() {
 
       expect(find.byType(MbMenuDrawer), findsOneWidget);
       expect(find.text('LÊ VĂN LỰC'), findsOneWidget);
+    });
+  });
+
+  group('BiometricService Unit Tests', () {
+    test('isBiometricEnabled and getSavedUsername read from secure storage',
+        () async {
+      FlutterSecureStorage.setMockInitialValues({
+        'biometric_enabled': 'true',
+        'bio_username': 'levanluc',
+      });
+      final service = BiometricService();
+      expect(await service.isBiometricEnabled(), isTrue);
+      expect(await service.getSavedUsername(), 'levanluc');
+    });
+
+    test('disableBiometric sets enabled false and preserves username',
+        () async {
+      FlutterSecureStorage.setMockInitialValues({
+        'biometric_enabled': 'true',
+        'bio_username': 'levanluc',
+        'bio_password': 'mypassword',
+      });
+      final service = BiometricService();
+      await service.disableBiometric();
+      expect(await service.isBiometricEnabled(), isFalse);
+      expect(await service.getSavedUsername(), 'levanluc');
+    });
+  });
+
+  group('AppSettingsScreen Widget Tests', () {
+    testWidgets('renders all MB Bank layout sections and elements',
+        (tester) async {
+      final mockService = MockProfileService();
+      final mockBio = MockTestBiometricService()..enabled = true;
+      MonedaService.cachedUserProfile = {
+        'username': 'levanluc',
+        'full_name': 'Lê Văn Lực',
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppSettingsScreen(
+            monedaService: mockService,
+            biometricService: mockBio,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Top AppBar
+      expect(find.text('Cài đặt'), findsOneWidget);
+      expect(find.byIcon(Icons.arrow_back_ios_new_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.home_outlined), findsOneWidget);
+
+      // Group 1: Bảo mật
+      expect(find.text('Bảo mật'), findsOneWidget);
+      expect(find.text('Đổi mật khẩu'), findsOneWidget);
+      expect(find.text('Đăng nhập bằng Face ID / Vân tay'), findsOneWidget);
+      final switchFinder = find.byType(Switch);
+      expect(switchFinder, findsOneWidget);
+      final Switch switchWidget = tester.widget(switchFinder);
+      expect(switchWidget.value, isTrue);
+
+      // Group 2: Tiện ích ngân sách
+      expect(find.text('Tiện ích ngân sách'), findsOneWidget);
+      expect(find.text('Cài đặt tỷ lệ 3 hũ (50/30/20)'), findsOneWidget);
+      expect(find.text('Chuyển tiền nội bộ giữa các hũ'), findsOneWidget);
+    });
+
+    testWidgets('tapping "Cài đặt tỷ lệ 3 hũ" opens SettingsModal tab 0',
+        (tester) async {
+      final mockService = MockProfileService();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppSettingsScreen(monedaService: mockService),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Cài đặt tỷ lệ 3 hũ (50/30/20)'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SettingsModal), findsOneWidget);
+      expect(find.text('Tiện ích'), findsOneWidget);
+      expect(find.text('Cài đặt tỷ lệ 3 hũ'), findsOneWidget);
+    });
+
+    testWidgets(
+        'tapping "Chuyển tiền nội bộ giữa các hũ" opens SettingsModal tab 1',
+        (tester) async {
+      final mockService = MockProfileService();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppSettingsScreen(monedaService: mockService),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Chuyển tiền nội bộ giữa các hũ'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SettingsModal), findsOneWidget);
+      expect(find.text('Chuyển tiền nội bộ'), findsOneWidget);
+    });
+
+    testWidgets('change password dialog validates and updates password',
+        (tester) async {
+      final mockService = MockProfileService();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppSettingsScreen(monedaService: mockService),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Đổi mật khẩu'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mật khẩu mới'), findsOneWidget);
+      expect(find.text('Xác nhận mật khẩu mới'), findsOneWidget);
+
+      final newPassField = find.widgetWithText(TextField, 'Tối thiểu 6 ký tự');
+      final confirmPassField =
+          find.widgetWithText(TextField, 'Nhập lại mật khẩu mới');
+
+      // Test validation mismatch
+      await tester.enterText(newPassField, 'password123');
+      await tester.enterText(confirmPassField, 'differentpass');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Cập nhật'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mật khẩu nhập lại chưa khớp'), findsOneWidget);
+
+      // Fix matching password
+      await tester.enterText(confirmPassField, 'password123');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Cập nhật'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(mockService.updatedPassword, 'password123');
+      expect(find.text('Đã đổi mật khẩu thành công'), findsOneWidget);
+
+      // Settle toast timer
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets(
+        'biometric switch shows alert when device unsupported and keeps switch off',
+        (tester) async {
+      final mockService = MockProfileService();
+      final mockBio = MockTestBiometricService()
+        ..available = false
+        ..enabled = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppSettingsScreen(
+            monedaService: mockService,
+            biometricService: mockBio,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final switchFinder = find.byType(Switch);
+      Switch sw = tester.widget(switchFinder);
+      expect(sw.value, isFalse);
+
+      await tester.tap(switchFinder);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(
+        find.text(
+          'Thiết bị hoặc trình duyệt hiện tại không hỗ trợ Face ID / Vân tay',
+        ),
+        findsOneWidget,
+      );
+
+      sw = tester.widget(switchFinder);
+      expect(sw.value, isFalse);
+
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets(
+        'biometric switch enables directly when supported and session password exists',
+        (tester) async {
+      final mockService = MockProfileService();
+      final mockBio = MockTestBiometricService()
+        ..available = true
+        ..enabled = false;
+      MonedaService.lastLoginPassword = 'sessionpassword123';
+      MonedaService.cachedUserProfile = {'username': 'levanluc'};
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppSettingsScreen(
+            monedaService: mockService,
+            biometricService: mockBio,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final switchFinder = find.byType(Switch);
+      await tester.tap(switchFinder);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(
+        find.text('Đã bật đăng nhập bằng Face ID / Vân tay'),
+        findsOneWidget,
+      );
+      expect(mockBio.enabled, isTrue);
+
+      final Switch sw = tester.widget(switchFinder);
+      expect(sw.value, isTrue);
+
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets(
+        'biometric switch prompts password dialog when supported and no session password',
+        (tester) async {
+      final mockService = MockProfileService();
+      final mockBio = MockTestBiometricService()
+        ..available = true
+        ..enabled = false;
+      MonedaService.lastLoginPassword = null;
+      MonedaService.cachedUserProfile = {'username': 'levanluc'};
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppSettingsScreen(
+            monedaService: mockService,
+            biometricService: mockBio,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final switchFinder = find.byType(Switch);
+      await tester.tap(switchFinder);
+      await tester.pumpAndSettle();
+
+      // Dialog opens
+      expect(find.text('Xác nhận mật khẩu'), findsOneWidget);
+      expect(find.text('Kích hoạt'), findsOneWidget);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Nhập mật khẩu'),
+        'promptedPass123',
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Kích hoạt'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(
+        find.text('Đã bật đăng nhập bằng Face ID / Vân tay'),
+        findsOneWidget,
+      );
+      expect(mockBio.enabled, isTrue);
+      expect(mockBio.savedPass, 'promptedPass123');
+
+      final Switch sw = tester.widget(switchFinder);
+      expect(sw.value, isTrue);
+
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('biometric switch toggling off disables biometric',
+        (tester) async {
+      final mockService = MockProfileService();
+      final mockBio = MockTestBiometricService()
+        ..available = true
+        ..enabled = true;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppSettingsScreen(
+            monedaService: mockService,
+            biometricService: mockBio,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final switchFinder = find.byType(Switch);
+      Switch sw = tester.widget(switchFinder);
+      expect(sw.value, isTrue);
+
+      await tester.tap(switchFinder);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(
+        find.text('Đã tắt đăng nhập bằng Face ID / Vân tay'),
+        findsOneWidget,
+      );
+      expect(mockBio.enabled, isFalse);
+
+      sw = tester.widget(switchFinder);
+      expect(sw.value, isFalse);
+
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+    });
+  });
+
+  group('Navigation to AppSettingsScreen Tests', () {
+    testWidgets('MbMenuDrawer "Cài đặt" navigates to AppSettingsScreen',
+        (tester) async {
+      final mockService = MockProfileService();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            endDrawer: MbMenuDrawer(monedaService: mockService),
+            body: const Center(child: Text('Home')),
+          ),
+        ),
+      );
+
+      final scaffoldState =
+          tester.state<ScaffoldState>(find.byType(Scaffold));
+      scaffoldState.openEndDrawer();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Cài đặt'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AppSettingsScreen), findsOneWidget);
+    });
+
+    testWidgets(
+        'UserProfileScreen "Tăng cường bảo vệ" navigates to AppSettingsScreen',
+        (tester) async {
+      final mockService = MockProfileService();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: UserProfileScreen(monedaService: mockService),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Tăng cường bảo vệ'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AppSettingsScreen), findsOneWidget);
+    });
+
+    testWidgets('AppSettingsScreen home icon button pops to root',
+        (tester) async {
+      final mockService = MockProfileService();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(builder: (ctx) {
+              return ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    ctx,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          AppSettingsScreen(monedaService: mockService),
+                    ),
+                  );
+                },
+                child: const Text('Open Settings'),
+              );
+            }),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Open Settings'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AppSettingsScreen), findsOneWidget);
+
+      // Tap home icon
+      await tester.tap(find.byIcon(Icons.home_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AppSettingsScreen), findsNothing);
+      expect(find.text('Open Settings'), findsOneWidget);
     });
   });
 }
