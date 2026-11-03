@@ -119,6 +119,7 @@ class _SettingsModalState extends State<SettingsModal> {
       showMbTopToast(
         context,
         'Lỗi khi cập nhật tỷ lệ: $e',
+        isSuccess: false,
       );
     } finally {
       if (mounted) {
@@ -151,6 +152,7 @@ class _SettingsModalState extends State<SettingsModal> {
       showMbTopToast(
         context,
         'Lỗi khi chuyển tiền nội bộ: $e',
+        isSuccess: false,
       );
     } finally {
       if (mounted) {

@@ -7,6 +7,7 @@ void showMbTopToast(
   BuildContext context,
   String message, {
   Duration duration = const Duration(milliseconds: 1200),
+  bool? isSuccess,
 }) {
   final overlay = Overlay.maybeOf(context);
   if (overlay == null) return;
@@ -16,6 +17,7 @@ void showMbTopToast(
     builder: (context) => _MbTopToastWidget(
       message: message,
       duration: duration,
+      isSuccess: isSuccess,
       onDismissed: () {
         if (entry.mounted) {
           entry.remove();
@@ -31,11 +33,13 @@ class _MbTopToastWidget extends StatefulWidget {
   final String message;
   final VoidCallback onDismissed;
   final Duration duration;
+  final bool? isSuccess;
 
   const _MbTopToastWidget({
     required this.message,
     required this.onDismissed,
     this.duration = const Duration(milliseconds: 1200),
+    this.isSuccess,
   });
 
   @override
@@ -47,6 +51,27 @@ class _MbTopToastWidgetState extends State<_MbTopToastWidget>
   late final AnimationController _controller;
   late final Animation<Offset> _slideAnimation;
   late final Animation<double> _fadeAnimation;
+
+  bool get _effectiveIsSuccess {
+    if (widget.isSuccess != null) return widget.isSuccess!;
+    final lower = widget.message.toLowerCase();
+    const warningWords = [
+      'không',
+      'lỗi',
+      'vui lòng',
+      'chưa',
+      'vượt quá',
+      'thất bại',
+      'hủy',
+      'tắt',
+      'sai',
+      'tồn tại',
+    ];
+    for (final word in warningWords) {
+      if (lower.contains(word)) return false;
+    }
+    return true;
+  }
 
   @override
   void initState() {
@@ -135,23 +160,25 @@ class _MbTopToastWidgetState extends State<_MbTopToastWidget>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Hàng chính: Icon tích xanh lá + Message
+                      // Hàng chính: Icon tích xanh lá (khi thành công) + Message
                       Row(
                         children: [
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF22C55E), // Xanh lá #22C55E
-                              shape: BoxShape.circle,
+                          if (_effectiveIsSuccess) ...[
+                            Container(
+                              width: 28,
+                              height: 28,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF22C55E), // Xanh lá #22C55E
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.check,
+                                color: AppColors.white,
+                                size: 18,
+                              ),
                             ),
-                            child: const Icon(
-                              Icons.check,
-                              color: AppColors.white,
-                              size: 18,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
+                            const SizedBox(width: 12),
+                          ],
                           Expanded(
                             child: Text(
                               widget.message,

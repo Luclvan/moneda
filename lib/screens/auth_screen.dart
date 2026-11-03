@@ -1,24 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/constants/app_colors.dart';
-import '../services/biometric_service.dart';
 import '../services/moneda_service.dart';
 import '../utils/moneda_validator.dart';
-import '../widgets/biometric_system_icon.dart';
-import '../widgets/mb_feedback.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
 
 /// Màn hình Đăng nhập Moneda (hỗ trợ Đăng nhập Lần đầu & Đăng nhập Lần 2+)
 class AuthScreen extends StatefulWidget {
   final MonedaService? monedaService;
-  final BiometricService? biometricService;
   final bool? forceFirstTime;
 
   const AuthScreen({
     super.key,
     this.monedaService,
-    this.biometricService,
     this.forceFirstTime,
   });
 
@@ -45,8 +40,6 @@ class _AuthScreenState extends State<AuthScreen> {
   Map<String, String>? _savedUser;
 
   MonedaService get _service => widget.monedaService ?? MonedaService();
-  BiometricService get _biometricService =>
-      widget.biometricService ?? BiometricService();
 
   @override
   void initState() {
@@ -67,13 +60,12 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> _loadSavedUser() async {
-    final bioUser = await _biometricService.getSavedUsername();
     final user = await _service.getLastLoggedInUser();
     if (!mounted) return;
 
     setState(() {
       _savedUser = user;
-      final effectiveUsername = bioUser ?? user?['username'];
+      final effectiveUsername = user?['username'];
       if (user != null && widget.forceFirstTime != true) {
         _isReturningUser = true;
         _usernameController.text = effectiveUsername ?? '';
@@ -84,57 +76,6 @@ class _AuthScreenState extends State<AuthScreen> {
         }
       }
     });
-  }
-
-  Future<void> _handleBiometricAuth() async {
-    final isEnabled = await _biometricService.isBiometricEnabled();
-    if (!mounted) return;
-
-    if (!isEnabled) {
-      showMbTopToast(
-        context,
-        'Vui lòng đăng nhập bằng mật khẩu và bật Face ID trong mục Cài đặt',
-      );
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _serverErrorMessage = null;
-    });
-
-    try {
-      final creds = await _biometricService.authenticateAndGetCredentials();
-      if (!mounted) return;
-
-      if (creds != null) {
-        final username = creds['username']!;
-        final password = creds['password']!;
-
-        await _service.signIn(
-          username: username,
-          password: password,
-        );
-
-        if (!mounted) return;
-        showMbTopToast(context, 'Đăng nhập thành công');
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
-      } else {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _serverErrorMessage = MonedaService.formatAuthErrorMessage(e);
-        _isLoading = false;
-      });
-    }
   }
 
   @override
@@ -192,7 +133,6 @@ class _AuthScreenState extends State<AuthScreen> {
       );
 
       if (!mounted) return;
-      showMbTopToast(context, 'Đăng nhập thành công');
 
       Navigator.pushReplacement(
         context,
@@ -756,59 +696,28 @@ class _AuthScreenState extends State<AuthScreen> {
         const SizedBox(height: 12),
 
         // Dòng chữ nhỏ "Xin chào," + Họ tên người dùng lớn
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Xin chào,',
-                    style: TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    fullName,
-                    style: const TextStyle(
-                      color: AppColors.textDark,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.3,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+            const Text(
+              'Xin chào,',
+              style: TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(width: 12),
-
-            // Nút Face ID / Vân tay
-            InkWell(
-              onTap: _isLoading ? null : _handleBiometricAuth,
-              borderRadius: BorderRadius.circular(14),
-              child: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryBlue.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: AppColors.primaryBlue.withValues(alpha: 0.25),
-                  ),
-                ),
-                child: const Center(
-                  child: BiometricSystemIcon(
-                    size: 28,
-                    color: AppColors.primaryBlue,
-                  ),
-                ),
+            const SizedBox(height: 2),
+            Text(
+              fullName,
+              style: const TextStyle(
+                color: AppColors.textDark,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.3,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -956,77 +865,45 @@ class _AuthScreenState extends State<AuthScreen> {
         const SizedBox(height: 24),
 
         // Nút chính ở đáy Card: Đăng nhập
-        _buildSubmitButton(showBiometric: false),
+        _buildSubmitButton(),
       ],
     );
   }
 
-  Widget _buildSubmitButton({bool showBiometric = true}) {
+  Widget _buildSubmitButton() {
     final canSubmit = _isLoginValid && !_isLoading;
 
-    return Row(
-      children: [
-        // Nút lớn Đăng nhập
-        Expanded(
-          child: SizedBox(
-            height: 50,
-            child: ElevatedButton(
-              onPressed: canSubmit ? _handleSignIn : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryBlue,
-                disabledBackgroundColor: AppColors.disabledBlue,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        color: AppColors.white,
-                        strokeWidth: 2.5,
-                      ),
-                    )
-                  : const Text(
-                      'Đăng nhập',
-                      style: TextStyle(
-                        color: AppColors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-            ),
+    return SizedBox(
+      height: 50,
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: canSubmit ? _handleSignIn : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primaryBlue,
+          disabledBackgroundColor: AppColors.disabledBlue,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
           ),
         ),
-        if (showBiometric) ...[
-          const SizedBox(width: 12),
-          // Nút vuông bo góc 50x50 quét Face ID / Vân tay
-          InkWell(
-            onTap: _isLoading ? null : _handleBiometricAuth,
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: const Color(0xFFBFDBFE),
-                  width: 1,
+        child: _isLoading
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  color: AppColors.white,
+                  strokeWidth: 2.5,
+                ),
+              )
+            : const Text(
+                'Đăng nhập',
+                style: TextStyle(
+                  color: AppColors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              child: const Center(
-                child: BiometricSystemIcon(
-                  size: 26,
-                  color: AppColors.primaryBlue,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ],
+      ),
     );
   }
 
