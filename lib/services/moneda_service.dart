@@ -41,10 +41,31 @@ class HomeDashboardData {
 /// Service tương tác với Supabase cho ứng dụng Moneda
 class MonedaService {
   SupabaseClient get _client => SupabaseConfig.client;
+  SupabaseClient get _supabase => _client;
+
+  User? get currentUser {
+    try {
+      return _supabase.auth.currentUser;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? get currentUserId {
+    try {
+      return _supabase.auth.currentUser?.id;
+    } catch (_) {
+      return null;
+    }
+  }
 
   // ==========================================
-  // IN-MEMORY CACHE (Zero-Spinner Caching - SUPL2)
+  // IN-MEMORY CACHE & USER SESSION
   // ==========================================
+  static Map<String, dynamic>? cachedUserProfile;
+  static String? lastLoginUsername;
+  static String? lastLoginPassword;
+
   static Map<String, dynamic>? cachedSettings;
   static List<Map<String, dynamic>>? cachedJars;
   static List<Map<String, dynamic>>? cachedRecentTransactions;
@@ -62,15 +83,159 @@ class MonedaService {
     cachedRecentTransactions = null;
     cachedSavingGoals = null;
     cachedMonthlyReports.clear();
+    cachedUserProfile = null;
+    lastLoginPassword = null;
   }
 
-  /// Lấy thông tin app_settings (id = 1)
+  String _toInternalEmail(String userId) {
+    final trimmed = userId.trim().toLowerCase();
+    if (!trimmed.contains('@')) {
+      return '$trimmed@moneda.local';
+    }
+    return trimmed;
+  }
+
+  // ==========================================
+  // AUTHENTICATION & USER PROFILE
+  // ==========================================
+
+  /// Đăng ký tài khoản mới bằng username & password
+  Future<void> signUp({
+    required String fullName,
+    required String username,
+    required String password,
+  }) async {
+    final cleanUsername = username.trim();
+    final cleanFullName = fullName.trim();
+    final email = _toInternalEmail(cleanUsername);
+
+    final response = await _supabase.auth.signUp(
+      email: email,
+      password: password,
+      data: {
+        'full_name': cleanFullName,
+        'username': cleanUsername,
+      },
+    );
+
+    final uid = response.user!.id;
+
+    await _supabase.rpc(
+      'initialize_or_claim_user_data',
+      params: {
+        'p_user_id': uid,
+        'p_username': cleanUsername,
+        'p_full_name': cleanFullName,
+      },
+    );
+
+    lastLoginUsername = cleanUsername;
+    lastLoginPassword = password;
+
+    await getUserProfile();
+    await _refreshHomeCache();
+  }
+
+  /// Đăng nhập tài khoản bằng username & password
+  Future<void> signIn({
+    required String username,
+    required String password,
+  }) async {
+    final cleanUsername = username.trim();
+    final email = _toInternalEmail(cleanUsername);
+
+    final response = await _supabase.auth.signInWithPassword(
+      email: email,
+      password: password,
+    );
+
+    final uid = response.user!.id;
+    final fullName =
+        (response.user?.userMetadata?['full_name'] as String?)?.trim() ??
+            cleanUsername;
+
+    await _supabase.rpc(
+      'initialize_or_claim_user_data',
+      params: {
+        'p_user_id': uid,
+        'p_username': cleanUsername,
+        'p_full_name': fullName,
+      },
+    );
+
+    lastLoginUsername = cleanUsername;
+    lastLoginPassword = password;
+
+    await getUserProfile();
+    await _refreshHomeCache();
+  }
+
+  /// Lấy thông tin hồ sơ người dùng từ bảng user_profiles
+  Future<Map<String, dynamic>?> getUserProfile() async {
+    try {
+      final uid = currentUserId;
+      if (uid == null) return null;
+
+      final response = await _client
+          .from('user_profiles')
+          .select('*')
+          .eq('user_id', uid)
+          .maybeSingle();
+
+      if (response != null) {
+        cachedUserProfile = Map<String, dynamic>.from(response);
+      }
+      return cachedUserProfile;
+    } catch (e) {
+      debugPrint('Error getting user profile: $e');
+      return cachedUserProfile;
+    }
+  }
+
+  /// Cập nhật họ tên người dùng
+  Future<void> updateFullName(String newFullName) async {
+    final cleanFullName = newFullName.trim();
+    final uid = currentUserId!;
+    await _client.from('user_profiles').update({
+      'full_name': cleanFullName,
+    }).eq('user_id', uid);
+
+    if (cachedUserProfile != null) {
+      cachedUserProfile!['full_name'] = cleanFullName;
+    } else {
+      cachedUserProfile = {
+        'user_id': uid,
+        'full_name': cleanFullName,
+      };
+    }
+  }
+
+  /// Cập nhật mật khẩu người dùng
+  Future<void> updatePassword(String newPassword) async {
+    await _supabase.auth.updateUser(
+      UserAttributes(password: newPassword),
+    );
+  }
+
+  /// Đăng xuất khỏi hệ thống & xóa sạch cache
+  Future<void> signOut() async {
+    clearCache();
+    cachedUserProfile = null;
+    lastLoginPassword = null;
+    try {
+      await _supabase.auth.signOut();
+    } catch (e) {
+      debugPrint('Error signing out: $e');
+    }
+  }
+
+  /// Lấy thông tin app_settings
   Future<AppSettings> getAppSettings() async {
     try {
       final response = await _client
           .from('app_settings')
           .select('*')
-          .eq('id', 1)
+          .eq('user_id', currentUserId!)
           .maybeSingle();
 
       if (response != null) {
@@ -108,7 +273,10 @@ class MonedaService {
   /// Lấy danh sách 3 hũ từ bảng jars
   Future<Map<String, Jar>> getJars() async {
     try {
-      final List<dynamic> response = await _client.from('jars').select('*');
+      final List<dynamic> response = await _client
+          .from('jars')
+          .select('*')
+          .eq('user_id', currentUserId!);
       cachedJars = List<Map<String, dynamic>>.from(response);
 
       final jarsMap = <String, Jar>{
@@ -147,12 +315,14 @@ class MonedaService {
       final incomesFuture = _client
           .from('incomes')
           .select('*')
+          .eq('user_id', currentUserId!)
           .order('transaction_date', ascending: false)
           .limit(limit);
 
       final expensesFuture = _client
           .from('expenses')
           .select('*')
+          .eq('user_id', currentUserId!)
           .order('transaction_date', ascending: false)
           .limit(limit);
 
@@ -239,11 +409,13 @@ class MonedaService {
       final sourcesFuture = _client
           .from('income_sources')
           .select('source_name')
+          .eq('user_id', currentUserId!)
           .eq('is_deleted', false);
 
       final incomesFuture = _client
           .from('incomes')
           .select('source_name')
+          .eq('user_id', currentUserId!)
           .order('transaction_date', ascending: false)
           .limit(30);
 
@@ -297,6 +469,7 @@ class MonedaService {
       final response = await _client
           .from('expenses')
           .select('category')
+          .eq('user_id', currentUserId!)
           .order('transaction_date', ascending: false)
           .limit(100);
 
@@ -346,6 +519,7 @@ class MonedaService {
       final response = await _client
           .from('expenses')
           .select('title, category, transaction_date')
+          .eq('user_id', currentUserId!)
           .order('transaction_date', ascending: false);
 
       final rows = List<Map<String, dynamic>>.from(response);
@@ -464,15 +638,15 @@ class MonedaService {
           _client.from('jars').update({
             'balance': newNeed,
             'updated_at': nowIso,
-          }).eq('jar_type', 'NEED'),
+          }).eq('user_id', currentUserId!).eq('jar_type', 'NEED'),
           _client.from('jars').update({
             'balance': newWant,
             'updated_at': nowIso,
-          }).eq('jar_type', 'WANT'),
+          }).eq('user_id', currentUserId!).eq('jar_type', 'WANT'),
           _client.from('jars').update({
             'balance': newSave,
             'updated_at': nowIso,
-          }).eq('jar_type', 'SAVE'),
+          }).eq('user_id', currentUserId!).eq('jar_type', 'SAVE'),
         ]);
       } else {
         final cleanJar = targetJar.toUpperCase();
@@ -484,7 +658,7 @@ class MonedaService {
         await _client.from('jars').update({
           'balance': currentBalance + amount,
           'updated_at': nowIso,
-        }).eq('jar_type', cleanJar);
+        }).eq('user_id', currentUserId!).eq('jar_type', cleanJar);
       }
 
       // Tự động lưu nguồn thu nhập mới vào bảng income_sources nếu chưa có
@@ -494,11 +668,13 @@ class MonedaService {
           final existing = await _client
               .from('income_sources')
               .select('id')
+              .eq('user_id', currentUserId!)
               .ilike('source_name', trimmedSource)
               .maybeSingle();
 
           if (existing == null) {
             await _client.from('income_sources').insert({
+              'user_id': currentUserId!,
               'source_name': trimmedSource,
               'is_deleted': false,
             });
@@ -510,6 +686,7 @@ class MonedaService {
 
       // Lưu bản ghi vào bảng incomes
       await _client.from('incomes').insert({
+        'user_id': currentUserId!,
         'source_name': sourceName,
         'amount': amount,
         'target_jar': isAllSplit ? 'ALL' : targetJar.toUpperCase(),
@@ -522,7 +699,7 @@ class MonedaService {
       // Cập nhật total_balance trong app_settings
       await _client.from('app_settings').update({
         'total_balance': settings.totalBalance + amount,
-      }).eq('id', 1);
+      }).eq('user_id', currentUserId!);
 
       cachedMonthlyReports.clear();
       cachedRecentTransactions = null;
@@ -548,6 +725,7 @@ class MonedaService {
 
       // Lưu bản ghi vào bảng expenses
       await _client.from('expenses').insert({
+        'user_id': currentUserId!,
         'jar_type': cleanJar,
         'category': category,
         'amount': amount,
@@ -560,12 +738,12 @@ class MonedaService {
       await _client.from('jars').update({
         'balance': currentJarBalance - amount,
         'updated_at': nowIso,
-      }).eq('jar_type', cleanJar);
+      }).eq('user_id', currentUserId!).eq('jar_type', cleanJar);
 
       // Trừ total_balance trong app_settings
       await _client.from('app_settings').update({
         'total_balance': settings.totalBalance - amount,
-      }).eq('id', 1);
+      }).eq('user_id', currentUserId!);
 
       cachedMonthlyReports.clear();
       cachedRecentTransactions = null;
@@ -591,7 +769,7 @@ class MonedaService {
         'need_ratio': needRatio,
         'want_ratio': wantRatio,
         'save_ratio': saveRatio,
-      }).eq('id', 1);
+      }).eq('user_id', currentUserId!);
 
       await _refreshHomeCache();
     } catch (e) {
@@ -626,11 +804,11 @@ class MonedaService {
         _client.from('jars').update({
           'balance': fromBalance - amount,
           'updated_at': nowIso,
-        }).eq('jar_type', from),
+        }).eq('user_id', currentUserId!).eq('jar_type', from),
         _client.from('jars').update({
           'balance': toBalance + amount,
           'updated_at': nowIso,
-        }).eq('jar_type', to),
+        }).eq('user_id', currentUserId!).eq('jar_type', to),
       ]);
 
       await _refreshHomeCache();
@@ -664,7 +842,7 @@ class MonedaService {
         await _client.from('jars').update({
           'balance': 0.0,
           'updated_at': nowIso,
-        }).eq('jar_type', 'NEED');
+        }).eq('user_id', currentUserId!).eq('jar_type', 'NEED');
       }
 
       if (includeWant && wantBalance > 0) {
@@ -672,7 +850,7 @@ class MonedaService {
         await _client.from('jars').update({
           'balance': 0.0,
           'updated_at': nowIso,
-        }).eq('jar_type', 'WANT');
+        }).eq('user_id', currentUserId!).eq('jar_type', 'WANT');
       }
 
       if (totalTransferred > 0) {
@@ -680,7 +858,7 @@ class MonedaService {
         await _client.from('jars').update({
           'balance': newSaveBalance,
           'updated_at': nowIso,
-        }).eq('jar_type', 'SAVE');
+        }).eq('user_id', currentUserId!).eq('jar_type', 'SAVE');
       }
 
       cachedMonthlyReports.clear();
@@ -713,7 +891,7 @@ class MonedaService {
           await _client.from('jars').update({
             'balance': 0.0,
             'updated_at': nowIso,
-          }).eq('jar_type', 'NEED');
+          }).eq('user_id', currentUserId!).eq('jar_type', 'NEED');
         }
 
         if (wantBalance > 0) {
@@ -721,7 +899,7 @@ class MonedaService {
           await _client.from('jars').update({
             'balance': 0.0,
             'updated_at': nowIso,
-          }).eq('jar_type', 'WANT');
+          }).eq('user_id', currentUserId!).eq('jar_type', 'WANT');
         }
 
         if (surplusToTransfer > 0) {
@@ -729,14 +907,14 @@ class MonedaService {
           await _client.from('jars').update({
             'balance': newSaveBalance,
             'updated_at': nowIso,
-          }).eq('jar_type', 'SAVE');
+          }).eq('user_id', currentUserId!).eq('jar_type', 'SAVE');
         }
       }
 
       // Cập nhật last_rollover_month thành tháng hiện tại
       await _client.from('app_settings').update({
         'last_rollover_month': currentMonth,
-      }).eq('id', 1);
+      }).eq('user_id', currentUserId!);
 
       cachedMonthlyReports.clear();
       await _refreshHomeCache();
@@ -753,7 +931,10 @@ class MonedaService {
     DateTime? toDate,
   }) async {
     try {
-      var query = _client.from('expenses').select('*');
+      var query = _client
+          .from('expenses')
+          .select('*')
+          .eq('user_id', currentUserId!);
 
       if (jarType != null && jarType != 'ALL' && jarType.isNotEmpty) {
         query = query.eq('jar_type', jarType.toUpperCase());
@@ -789,7 +970,11 @@ class MonedaService {
       final goalId = expense['goal_id'];
 
       // 1. Xóa bản ghi
-      await _client.from('expenses').delete().eq('id', id);
+      await _client
+          .from('expenses')
+          .delete()
+          .eq('user_id', currentUserId!)
+          .eq('id', id);
 
       // Nếu có goal_id, trừ lùi current_amount của mục tiêu tương ứng trong saving_goals
       if (goalId != null) {
@@ -797,6 +982,7 @@ class MonedaService {
           final goalRes = await _client
               .from('saving_goals')
               .select('*')
+              .eq('user_id', currentUserId!)
               .eq('id', goalId)
               .maybeSingle();
           if (goalRes != null) {
@@ -805,7 +991,7 @@ class MonedaService {
             await _client.from('saving_goals').update({
               'current_amount': cur - amount,
               'updated_at': DateTime.now().toIso8601String(),
-            }).eq('id', goalId);
+            }).eq('user_id', currentUserId!).eq('id', goalId);
           }
         } catch (e) {
           debugPrint('Notice updating saving_goals: $e');
@@ -819,13 +1005,13 @@ class MonedaService {
       await _client.from('jars').update({
         'balance': currentBalance + amount,
         'updated_at': DateTime.now().toIso8601String(),
-      }).eq('jar_type', refundJar);
+      }).eq('user_id', currentUserId!).eq('jar_type', refundJar);
 
       // 3. Hoàn lại tiền vào total_balance trong app_settings
       final settings = await getAppSettings();
       await _client.from('app_settings').update({
         'total_balance': settings.totalBalance + amount,
-      }).eq('id', 1);
+      }).eq('user_id', currentUserId!);
 
       cachedMonthlyReports.clear();
       cachedRecentTransactions = null;
@@ -848,7 +1034,10 @@ class MonedaService {
     DateTime? toDate,
   }) async {
     try {
-      var query = _client.from('incomes').select('*');
+      var query = _client
+          .from('incomes')
+          .select('*')
+          .eq('user_id', currentUserId!);
 
       if (fromDate != null) {
         final startOfDay =
@@ -903,7 +1092,11 @@ class MonedaService {
       }
 
       // 2. Xóa bản ghi khỏi incomes
-      await _client.from('incomes').delete().eq('id', id);
+      await _client
+          .from('incomes')
+          .delete()
+          .eq('user_id', currentUserId!)
+          .eq('id', id);
 
       // 3. Thu hồi số tiền tương ứng ở các hũ
       final nowIso = DateTime.now().toIso8601String();
@@ -912,22 +1105,22 @@ class MonedaService {
         _client.from('jars').update({
           'balance': currentNeedBalance - allocatedNeed,
           'updated_at': nowIso,
-        }).eq('jar_type', 'NEED'),
+        }).eq('user_id', currentUserId!).eq('jar_type', 'NEED'),
         _client.from('jars').update({
           'balance': currentWantBalance - allocatedWant,
           'updated_at': nowIso,
-        }).eq('jar_type', 'WANT'),
+        }).eq('user_id', currentUserId!).eq('jar_type', 'WANT'),
         _client.from('jars').update({
           'balance': currentSaveBalance - allocatedSave,
           'updated_at': nowIso,
-        }).eq('jar_type', 'SAVE'),
+        }).eq('user_id', currentUserId!).eq('jar_type', 'SAVE'),
       ]);
 
       // 3. Trừ total_balance trong app_settings
       final settings = await getAppSettings();
       await _client.from('app_settings').update({
         'total_balance': settings.totalBalance - amount,
-      }).eq('id', 1);
+      }).eq('user_id', currentUserId!);
 
       cachedMonthlyReports.clear();
       cachedRecentTransactions = null;
@@ -994,12 +1187,14 @@ class MonedaService {
       final incomesFuture = _client
           .from('incomes')
           .select('*')
+          .eq('user_id', currentUserId!)
           .gte('transaction_date', startOfMonth.toIso8601String())
           .lte('transaction_date', endOfMonth.toIso8601String());
 
       final expensesFuture = _client
           .from('expenses')
           .select('*')
+          .eq('user_id', currentUserId!)
           .gte('transaction_date', startOfMonth.toIso8601String())
           .lte('transaction_date', endOfMonth.toIso8601String())
           .order('transaction_date', ascending: false);
@@ -1125,6 +1320,7 @@ class MonedaService {
       final response = await _client
           .from('saving_goals')
           .select('*')
+          .eq('user_id', currentUserId!)
           .order('created_at', ascending: true);
       final list = List<Map<String, dynamic>>.from(response);
       cachedSavingGoals = list;
@@ -1155,6 +1351,7 @@ class MonedaService {
       if (id == null) {
         // Thêm mới
         final data = {
+          'user_id': currentUserId!,
           'goal_name': goalName.trim(),
           'target_amount': targetAmount,
           'current_amount': 0.0,
@@ -1169,7 +1366,11 @@ class MonedaService {
           'target_amount': targetAmount,
           'deadline': deadline?.toIso8601String(),
         };
-        await _client.from('saving_goals').update(data).eq('id', id);
+        await _client
+            .from('saving_goals')
+            .update(data)
+            .eq('user_id', currentUserId!)
+            .eq('id', id);
       }
 
       cachedSavingGoals = null;
@@ -1195,19 +1396,27 @@ class MonedaService {
         await _client.from('jars').update({
           'balance': newSaveBalance,
           'updated_at': DateTime.now().toIso8601String(),
-        }).eq('jar_type', 'SAVE');
+        }).eq('user_id', currentUserId!).eq('jar_type', 'SAVE');
 
         final settings = await getAppSettings();
         await _client.from('app_settings').update({
           'total_balance': settings.totalBalance + currentAmount,
-        }).eq('id', 1);
+        }).eq('user_id', currentUserId!);
 
         // Xóa các bản ghi expenses phát sinh từ mục tiêu này
-        await _client.from('expenses').delete().eq('goal_id', goalId);
+        await _client
+            .from('expenses')
+            .delete()
+            .eq('user_id', currentUserId!)
+            .eq('goal_id', goalId);
       }
 
       // Xóa bản ghi trong saving_goals
-      await _client.from('saving_goals').delete().eq('id', goalId);
+      await _client
+          .from('saving_goals')
+          .delete()
+          .eq('user_id', currentUserId!)
+          .eq('id', goalId);
 
       cachedMonthlyReports.clear();
       cachedSavingGoals = null;
@@ -1243,18 +1452,19 @@ class MonedaService {
       await _client.from('jars').update({
         'balance': currentSaveBalance - amount,
         'updated_at': nowIso,
-      }).eq('jar_type', 'SAVE');
+      }).eq('user_id', currentUserId!).eq('jar_type', 'SAVE');
 
       // 2. Trừ total_balance trong bảng app_settings
       final settings = await getAppSettings();
       await _client.from('app_settings').update({
         'total_balance': settings.totalBalance - amount,
-      }).eq('id', 1);
+      }).eq('user_id', currentUserId!);
 
       // 3. Cộng amount vào current_amount của goal trong saving_goals
       final goalRes = await _client
           .from('saving_goals')
           .select('current_amount')
+          .eq('user_id', currentUserId!)
           .eq('id', goalId)
           .maybeSingle();
 
@@ -1263,10 +1473,11 @@ class MonedaService {
 
       await _client.from('saving_goals').update({
         'current_amount': currentGoalAmount + amount,
-      }).eq('id', goalId);
+      }).eq('user_id', currentUserId!).eq('id', goalId);
 
       // 4. Lưu 1 bản ghi vào bảng expenses
       await _client.from('expenses').insert({
+        'user_id': currentUserId!,
         'jar_type': 'SAVE',
         'category': 'Mục tiêu tiết kiệm',
         'title': 'Nạp tiền vào mục tiêu: $goalName',
@@ -1312,7 +1523,7 @@ class MonedaService {
       // 1. Trừ amount khỏi current_amount của goal trong saving_goals
       await _client.from('saving_goals').update({
         'current_amount': currentGoalAmount - amount,
-      }).eq('id', goalId);
+      }).eq('user_id', currentUserId!).eq('id', goalId);
 
       // 2. Cộng amount vào balance của hũ targetJarType trong bảng jars
       final jars = await getJars();
@@ -1320,13 +1531,13 @@ class MonedaService {
       await _client.from('jars').update({
         'balance': currentJarBalance + amount,
         'updated_at': nowIso,
-      }).eq('jar_type', normalizedJarType);
+      }).eq('user_id', currentUserId!).eq('jar_type', normalizedJarType);
 
       // 3. Cộng hoàn trả amount vào total_balance trong bảng app_settings
       final settings = await getAppSettings();
       await _client.from('app_settings').update({
         'total_balance': settings.totalBalance + amount,
-      }).eq('id', 1);
+      }).eq('user_id', currentUserId!);
 
       cachedMonthlyReports.clear();
       cachedRecentTransactions = null;
