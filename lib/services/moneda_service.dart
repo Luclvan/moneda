@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/supabase_config.dart';
 import '../models/app_settings.dart';
@@ -87,12 +88,110 @@ class MonedaService {
     lastLoginPassword = null;
   }
 
+  static const String _keySavedUsername = 'saved_username';
+  static const String _keySavedFullName = 'saved_full_name';
+
   String _toInternalEmail(String userId) {
-    final trimmed = userId.trim().toLowerCase();
-    if (!trimmed.contains('@')) {
-      return '$trimmed@moneda.local';
+    final cleanId = userId.trim().toLowerCase();
+    if (cleanId.contains('@')) return cleanId;
+    return '$cleanId@moneda.vn';
+  }
+
+  /// Lưu thông tin tài khoản đăng nhập gần nhất vào bộ nhớ máy
+  Future<void> saveLastLoggedInUser({
+    required String username,
+    required String fullName,
+  }) async {
+    lastLoginUsername = username;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keySavedUsername, username);
+      await prefs.setString(_keySavedFullName, fullName);
+    } catch (e) {
+      debugPrint('Error saving last logged in user: $e');
     }
-    return trimmed;
+  }
+
+  /// Đọc thông tin tài khoản đã đăng nhập gần nhất trên thiết bị (cho màn hình Đăng nhập Lần 2)
+  Future<Map<String, String>?> getLastLoggedInUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final username = prefs.getString(_keySavedUsername) ?? lastLoginUsername;
+      final fullName = prefs.getString(_keySavedFullName);
+      if (username != null && username.isNotEmpty) {
+        return {
+          'username': username,
+          'full_name': (fullName != null && fullName.isNotEmpty)
+              ? fullName
+              : (cachedUserProfile?['full_name'] as String? ?? username),
+        };
+      }
+    } catch (e) {
+      debugPrint('Error getting last logged in user: $e');
+    }
+    if (lastLoginUsername != null && lastLoginUsername!.isNotEmpty) {
+      return {
+        'username': lastLoginUsername!,
+        'full_name': cachedUserProfile?['full_name'] as String? ?? lastLoginUsername!,
+      };
+    }
+    return null;
+  }
+
+  /// Xóa thông tin tài khoản đã lưu khi người dùng bấm "Tài khoản khác"
+  Future<void> clearSavedUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_keySavedUsername);
+      await prefs.remove(_keySavedFullName);
+    } catch (e) {
+      debugPrint('Error clearing saved user: $e');
+    }
+    lastLoginUsername = null;
+  }
+
+  /// Dịch toàn bộ lỗi từ Supabase sang tiếng Việt rõ ràng
+  static String formatAuthErrorMessage(Object error) {
+    final msg = error.toString().toLowerCase();
+
+    if (msg.contains('invalid login credentials') ||
+        msg.contains('invalid_credentials') ||
+        msg.contains('invalid grant') ||
+        msg.contains('wrong password')) {
+      return 'Tên đăng nhập hoặc mật khẩu không chính xác';
+    }
+
+    if (msg.contains('user already registered') ||
+        msg.contains('user_already_exists') ||
+        msg.contains('already exists') ||
+        msg.contains('duplicate key')) {
+      return 'Tên đăng nhập này đã tồn tại, vui lòng chọn tên khác';
+    }
+
+    if (msg.contains('rate limit') ||
+        msg.contains('rate_limit') ||
+        msg.contains('over_email_send_rate_limit')) {
+      return 'Bạn thao tác quá nhanh, vui lòng đợi 1 phút hoặc tắt Confirm Email trên Supabase';
+    }
+
+    if (msg.contains('password should be at least 6 characters') ||
+        msg.contains('weak_password')) {
+      return 'Mật khẩu cần tối thiểu 6 ký tự';
+    }
+
+    if (msg.contains('socketexception') ||
+        msg.contains('failed host lookup') ||
+        msg.contains('network') ||
+        msg.contains('connection refused') ||
+        msg.contains('timeout')) {
+      return 'Không thể kết nối máy chủ. Vui lòng kiểm tra mạng.';
+    }
+
+    if (error is AuthException) {
+      return error.message;
+    }
+
+    return 'Đã xảy ra lỗi: ${error.toString()}';
   }
 
   // ==========================================
@@ -131,6 +230,10 @@ class MonedaService {
 
     lastLoginUsername = cleanUsername;
     lastLoginPassword = password;
+    await saveLastLoggedInUser(
+      username: cleanUsername,
+      fullName: cleanFullName,
+    );
 
     await getUserProfile();
     await _refreshHomeCache();
@@ -165,8 +268,20 @@ class MonedaService {
 
     lastLoginUsername = cleanUsername;
     lastLoginPassword = password;
+    await saveLastLoggedInUser(
+      username: cleanUsername,
+      fullName: fullName,
+    );
 
-    await getUserProfile();
+    final profile = await getUserProfile();
+    final profileFullName = (profile?['full_name'] as String?)?.trim();
+    if (profileFullName != null && profileFullName.isNotEmpty) {
+      await saveLastLoggedInUser(
+        username: cleanUsername,
+        fullName: profileFullName,
+      );
+    }
+
     await _refreshHomeCache();
   }
 

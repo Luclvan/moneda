@@ -245,5 +245,87 @@ class MonedaValidator {
 
     return null;
   }
+
+  /// 8.1 Kiểm tra hợp lệ trường Họ và tên
+  static String? validateFullName(String? fullName) {
+    if (fullName == null || fullName.trim().isEmpty) {
+      return 'Vui lòng nhập họ và tên hiển thị';
+    }
+    if (fullName.trim().length < 2) {
+      return 'Họ và tên phải có ít nhất 2 ký tự';
+    }
+    return null;
+  }
+
+  /// 8.2 Kiểm tra hợp lệ trường Tên đăng nhập (User ID)
+  static String? validateUsername(String? username) {
+    if (username == null || username.trim().isEmpty) {
+      return 'Vui lòng nhập tên đăng nhập';
+    }
+    final trimmed = username.trim();
+    if (trimmed.length < 3) {
+      return 'Tên đăng nhập cần tối thiểu 3 ký tự';
+    }
+    final validUsernameRegex = RegExp(r'^[a-zA-Z0-9._]+$');
+    if (!validUsernameRegex.hasMatch(trimmed)) {
+      return 'Tên đăng nhập chỉ gồm chữ không dấu, số, dấu chấm (.) hoặc gạch dưới (_)';
+    }
+    return null;
+  }
+
+  /// 8.3 Kiểm tra hợp lệ trường Mật khẩu
+  static String? validatePassword(String? password) {
+    if (password == null || password.isEmpty) {
+      return 'Vui lòng nhập mật khẩu';
+    }
+    if (password.length < 6) {
+      return 'Mật khẩu cần tối thiểu 6 ký tự (hiện tại: ${password.length}/6 ký tự)';
+    }
+    return null;
+  }
+
+  /// 8.4 Kiểm tra hợp lệ trường Nhập lại mật khẩu
+  static String? validateConfirmPassword(
+    String? password,
+    String? confirmPassword,
+  ) {
+    if (confirmPassword == null || confirmPassword.isEmpty) {
+      return 'Mật khẩu nhập lại chưa khớp';
+    }
+    if (confirmPassword != password) {
+      return 'Mật khẩu nhập lại chưa khớp';
+    }
+    return null;
+  }
+
+  /// 8.5 Kiểm tra tính hợp lệ khi đăng nhập
+  static String? validateLogin({
+    required String? username,
+    required String? password,
+  }) {
+    final userErr = validateUsername(username);
+    if (userErr != null) return userErr;
+    final passErr = validatePassword(password);
+    if (passErr != null) return passErr;
+    return null;
+  }
+
+  /// 8.6 Kiểm tra tính hợp lệ khi đăng ký tài khoản
+  static String? validateRegister({
+    required String? fullName,
+    required String? username,
+    required String? password,
+    required String? confirmPassword,
+  }) {
+    final nameErr = validateFullName(fullName);
+    if (nameErr != null) return nameErr;
+    final userErr = validateUsername(username);
+    if (userErr != null) return userErr;
+    final passErr = validatePassword(password);
+    if (passErr != null) return passErr;
+    final confirmErr = validateConfirmPassword(password, confirmPassword);
+    if (confirmErr != null) return confirmErr;
+    return null;
+  }
 }
 
