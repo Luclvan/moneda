@@ -323,6 +323,15 @@ class MonedaService {
         'full_name': cleanFullName,
       };
     }
+
+    final username =
+        cachedUserProfile?['username'] as String? ?? lastLoginUsername ?? '';
+    if (username.isNotEmpty) {
+      await saveLastLoggedInUser(
+        username: username,
+        fullName: cleanFullName,
+      );
+    }
   }
 
   /// Cập nhật mật khẩu người dùng

@@ -6,6 +6,7 @@ import '../models/transaction_item.dart';
 import '../services/moneda_service.dart';
 import '../widgets/balance_carousel.dart';
 import '../widgets/jars_allocation_card.dart';
+import '../widgets/mb_menu_drawer.dart';
 import '../widgets/moneda_bottom_bar.dart';
 import '../widgets/quick_actions_grid.dart';
 import '../widgets/recent_transactions_card.dart';
@@ -27,6 +28,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final MonedaService _monedaService = MonedaService();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   bool _isLoading = true;
   String? _errorMessage;
@@ -70,7 +72,11 @@ class _HomeScreenState extends State<HomeScreen> {
         _errorMessage = null;
       });
 
-      final data = await _monedaService.getDashboardData();
+      final results = await Future.wait([
+        _monedaService.getDashboardData(),
+        _monedaService.getUserProfile(),
+      ]);
+      final data = results[0] as HomeDashboardData;
 
       if (!mounted) return;
       setState(() {
@@ -177,7 +183,14 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: AppColors.backgroundGray,
+      endDrawer: MbMenuDrawer(
+        onOpenUtilities: () => _openSettingsModal(initialTab: 0),
+        onProfileUpdated: () {
+          _loadDashboardData();
+        },
+      ),
       // A. Top AppBar màu xanh biển đậm (#1E40AF)
       appBar: AppBar(
         backgroundColor: AppColors.primaryBlue,
@@ -201,7 +214,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: 8),
           _buildCircleButton(
             icon: Icons.menu_rounded,
-            onTap: () => _openSettingsModal(initialTab: 0),
+            onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
           ),
           const SizedBox(width: 16),
         ],
