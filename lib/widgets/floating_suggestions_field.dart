@@ -32,7 +32,7 @@ class FloatingSuggestionsField extends StatefulWidget {
     this.onSelected,
     this.onTap,
     this.itemIcon,
-    this.maxHeight = 220.0,
+    this.maxHeight = 190.0,
     this.textInputAction,
   });
 
@@ -52,12 +52,31 @@ class _FloatingSuggestionsFieldState extends State<FloatingSuggestionsField> {
 
   bool _isOpen = false;
   double? _targetWidth;
+  ScrollPosition? _scrollPosition;
+  Timer? _scrollTimer;
 
   @override
   void initState() {
     super.initState();
     _effectiveFocusNode.addListener(_handleFocusChange);
     widget.controller.addListener(_handleControllerChange);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final newPosition = Scrollable.maybeOf(context)?.position;
+    if (_scrollPosition != newPosition) {
+      _scrollPosition?.removeListener(_handleScroll);
+      _scrollPosition = newPosition;
+      _scrollPosition?.addListener(_handleScroll);
+    }
+  }
+
+  void _handleScroll() {
+    if (_isOpen && mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -79,15 +98,32 @@ class _FloatingSuggestionsFieldState extends State<FloatingSuggestionsField> {
 
   @override
   void dispose() {
+    _scrollTimer?.cancel();
+    _scrollPosition?.removeListener(_handleScroll);
     _effectiveFocusNode.removeListener(_handleFocusChange);
     widget.controller.removeListener(_handleControllerChange);
     _internalFocusNode?.dispose();
     super.dispose();
   }
 
+  void _scrollToVisible() {
+    _scrollTimer?.cancel();
+    _scrollTimer = Timer(const Duration(milliseconds: 120), () {
+      if (mounted && context.mounted) {
+        Scrollable.ensureVisible(
+          context,
+          alignment: 0.18, // Đẩy ô nhập lên vị trí 18% từ đỉnh màn hình xuống
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
+  }
+
   void _handleFocusChange() {
     if (_effectiveFocusNode.hasFocus) {
       _showOverlay();
+      _scrollToVisible();
     }
     // Khi mất focus, việc đóng overlay được xử lý bởi TapRegion.onTapOutside
     // hoặc khi chọn 1 item trong danh sách, tránh đóng sớm làm huỷ sự kiện onTap.
@@ -166,7 +202,9 @@ class _FloatingSuggestionsFieldState extends State<FloatingSuggestionsField> {
                 color: Colors.transparent,
                 child: Container(
                   width: fieldWidth,
-                  constraints: BoxConstraints(maxHeight: widget.maxHeight),
+                  constraints: BoxConstraints(
+                    maxHeight: widget.maxHeight <= 190.0 ? widget.maxHeight : 190.0,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFFFFF),
                     borderRadius: BorderRadius.circular(14),
@@ -262,6 +300,7 @@ class _FloatingSuggestionsFieldState extends State<FloatingSuggestionsField> {
                       await widget.onTap!();
                     }
                     _showOverlay();
+                    _scrollToVisible();
                   },
                   onChanged: (val) {
                     if (!_isOpen && _filteredSuggestions.isNotEmpty) {
@@ -316,6 +355,7 @@ class _FloatingSuggestionsFieldState extends State<FloatingSuggestionsField> {
                               }
                               _effectiveFocusNode.requestFocus();
                               _showOverlay();
+                              _scrollToVisible();
                             }
                           },
                         ),

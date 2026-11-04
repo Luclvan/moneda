@@ -523,8 +523,12 @@ class _ReceiveMoneyScreenState extends State<ReceiveMoneyScreen> {
       jarMainLabel = 'Chỉ vào Hũ $_selectedJar';
     }
 
+    final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0 ||
+        FocusScope.of(context).hasFocus;
+
     return Scaffold(
       backgroundColor: AppColors.backgroundGray,
+      resizeToAvoidBottomInset: true,
       // Top Bar nền trắng
       appBar: AppBar(
         backgroundColor: AppColors.white,
@@ -648,6 +652,7 @@ class _ReceiveMoneyScreenState extends State<ReceiveMoneyScreen> {
       ),
 
       body: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -845,7 +850,11 @@ class _ReceiveMoneyScreenState extends State<ReceiveMoneyScreen> {
               ],
             ),
 
-            const SizedBox(height: 32),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
+              height: isKeyboardOpen ? 240.0 : 24.0,
+            ),
           ],
         ),
       ),

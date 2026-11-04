@@ -493,8 +493,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
     if (_selectedJarType == 'WANT') currentRatio = wantRatio;
     if (_selectedJarType == 'SAVE') currentRatio = saveRatio;
 
+    final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0 ||
+        FocusScope.of(context).hasFocus;
+
     return Scaffold(
       backgroundColor: AppColors.backgroundGray,
+      resizeToAvoidBottomInset: true,
       // Top Bar nền trắng
       appBar: AppBar(
         backgroundColor: AppColors.white,
@@ -618,6 +622,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       ),
 
       body: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -838,7 +843,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
               },
             ),
 
-            const SizedBox(height: 32),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
+              height: isKeyboardOpen ? 240.0 : 24.0,
+            ),
           ],
         ),
       ),
