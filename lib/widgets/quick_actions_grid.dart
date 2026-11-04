@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 
-/// Khối 4 nút chức năng nhanh chuẩn MB Bank:
+/// Khối 4 nút chức năng nhanh chuẩn Moneda:
 /// 1. Thanh toán (credit_card)
 /// 2. Nhận tiền (attach_money)
 /// 3. Chuyển tiền (swap_vert)

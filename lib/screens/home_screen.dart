@@ -18,7 +18,7 @@ import 'rollover_transfer_screen.dart';
 import 'saving_goals_screen.dart';
 import 'transaction_history_screen.dart';
 
-/// Màn hình Trang chủ (Home Dashboard) chuẩn phong cách MB Bank
+/// Màn hình Trang chủ (Home Dashboard) chuẩn phong cách Moneda
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -210,7 +210,20 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         body: SafeArea(
           top: false,
-          child: _buildBody(topPadding),
+          child: Stack(
+            children: [
+              // Lớp nền xanh biển đậm (#1E40AF) lót cố định ở nửa trên màn hình
+              const Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 320,
+                child: ColoredBox(color: AppColors.primaryBlue),
+              ),
+              // Vùng nội dung chính cuộn kéo làm mới
+              _buildBody(topPadding),
+            ],
+          ),
         ),
       ),
     );
@@ -263,10 +276,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             child: _buildTopBannerHeader(topPadding),
           ),
-          const Expanded(
-            child: Center(
-              child: CircularProgressIndicator(
-                color: AppColors.primaryBlue,
+          Expanded(
+            child: Container(
+              color: AppColors.backgroundGray,
+              child: const Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.primaryBlue,
+                ),
               ),
             ),
           ),
@@ -287,36 +303,39 @@ class _HomeScreenState extends State<HomeScreen> {
             child: _buildTopBannerHeader(topPadding),
           ),
           Expanded(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.error_outline_rounded,
-                      size: 48,
-                      color: AppColors.errorRed,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _errorMessage!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.textDark,
-                        fontSize: 14,
+            child: Container(
+              color: AppColors.backgroundGray,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.error_outline_rounded,
+                        size: 48,
+                        color: AppColors.errorRed,
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _loadDashboardData,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryBlue,
-                        foregroundColor: AppColors.white,
+                      const SizedBox(height: 12),
+                      Text(
+                        _errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppColors.textDark,
+                          fontSize: 14,
+                        ),
                       ),
-                      child: const Text('Thử lại'),
-                    ),
-                  ],
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadDashboardData,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryBlue,
+                          foregroundColor: AppColors.white,
+                        ),
+                        child: const Text('Thử lại'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -335,8 +354,10 @@ class _HomeScreenState extends State<HomeScreen> {
         );
 
     return RefreshIndicator(
-      color: AppColors.primaryBlue,
-      backgroundColor: AppColors.white,
+      backgroundColor: Colors.transparent,
+      color: Colors.white,
+      elevation: 0,
+      strokeWidth: 2.5,
       onRefresh: _loadDashboardData,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -371,35 +392,43 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // C. Khối 4 Nút chức năng nhanh (cách 16px bên dưới banner xanh)
-            QuickActionsGrid(
-              onPaymentTap: _navigateToPayment,
-              onReceiveTap: _navigateToReceiveMoney,
-              onTransferTap: () => _openSettingsModal(initialTab: 1),
-              onHistoryTap: () =>
-                  _navigateToTransactionHistory(initialTab: 'ALL'),
-            ),
+            // Phần nội dung bên dưới giữ nền #F8FAFC
+            Container(
+              color: AppColors.backgroundGray,
+              child: Column(
+                children: [
+                  // C. Khối 4 Nút chức năng nhanh (cách 16px bên dưới banner xanh)
+                  QuickActionsGrid(
+                    onPaymentTap: _navigateToPayment,
+                    onReceiveTap: _navigateToReceiveMoney,
+                    onTransferTap: () => _openSettingsModal(initialTab: 1),
+                    onHistoryTap: () =>
+                        _navigateToTransactionHistory(initialTab: 'ALL'),
+                  ),
 
-            // D. Khối "Tỷ lệ phân bổ 3 hũ"
-            JarsAllocationCard(
-              settings: settings,
-              jars: _jars,
-              isBalanceHidden: _isBalanceHidden,
-              onCustomizeTap: () => _openSettingsModal(initialTab: 0),
-              onJarTap: (jarType) =>
-                  _navigateToTransactionHistory(initialTab: jarType),
-            ),
+                  // D. Khối "Tỷ lệ phân bổ 3 hũ"
+                  JarsAllocationCard(
+                    settings: settings,
+                    jars: _jars,
+                    isBalanceHidden: _isBalanceHidden,
+                    onCustomizeTap: () => _openSettingsModal(initialTab: 0),
+                    onJarTap: (jarType) =>
+                        _navigateToTransactionHistory(initialTab: jarType),
+                  ),
 
-            // E. Khối "Giao dịch gần đây"
-            RecentTransactionsCard(
-              transactions: _recentTransactions,
-              isBalanceHidden: _isBalanceHidden,
-              onViewAllTap: () =>
-                  _navigateToTransactionHistory(initialTab: 'ALL'),
-            ),
+                  // E. Khối "Giao dịch gần đây"
+                  RecentTransactionsCard(
+                    transactions: _recentTransactions,
+                    isBalanceHidden: _isBalanceHidden,
+                    onViewAllTap: () =>
+                        _navigateToTransactionHistory(initialTab: 'ALL'),
+                  ),
 
-            // Khoảng đệm 110px ở đáy để nội dung không bị thanh Bottom Bar che khuất
-            const SizedBox(height: 110),
+                  // Khoảng đệm 110px ở đáy để nội dung không bị thanh Bottom Bar che khuất
+                  const SizedBox(height: 110),
+                ],
+              ),
+            ),
           ],
         ),
       ),

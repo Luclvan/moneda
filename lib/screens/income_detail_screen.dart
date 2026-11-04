@@ -6,7 +6,7 @@ import '../services/moneda_service.dart';
 import '../widgets/mb_feedback.dart';
 import 'receive_money_screen.dart';
 
-/// Màn hình Chi tiết thu nhập (chuẩn phong cách MB Bank)
+/// Màn hình Chi tiết thu nhập (chuẩn phong cách Moneda)
 class IncomeDetailScreen extends StatefulWidget {
   const IncomeDetailScreen({super.key});
 

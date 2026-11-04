@@ -7,7 +7,7 @@ import '../utils/moneda_validator.dart';
 import '../widgets/mb_feedback.dart';
 import '../widgets/settings_modal.dart';
 
-/// Màn hình Cài đặt Moneda chuẩn phong cách MB Bank
+/// Màn hình Cài đặt Moneda hiện đại & tối giản
 class AppSettingsScreen extends StatefulWidget {
   final MonedaService? monedaService;
 

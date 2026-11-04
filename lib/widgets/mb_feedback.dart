@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 
-/// Hiển thị thông báo Top Toast chuẩn phong cách MB Bank
+/// Hiển thị thông báo Top Toast chuẩn phong cách Moneda
 /// Trượt mượt từ mép trên màn hình xuống và tự biến mất sau 1200ms
 void showMbTopToast(
   BuildContext context,
@@ -215,7 +215,7 @@ class _MbTopToastWidgetState extends State<_MbTopToastWidget>
   }
 }
 
-/// Hiển thị Dialog xác nhận xóa chuẩn MB Bank
+/// Hiển thị Dialog xác nhận xóa chuẩn Moneda
 Future<bool> showMbDeleteConfirmDialog({
   required BuildContext context,
   required String title,

@@ -3,7 +3,7 @@ import '../core/constants/app_colors.dart';
 import '../core/utils/currency_formatter.dart';
 import '../models/transaction_item.dart';
 
-/// Khối "Giao dịch gần đây" chuẩn phong cách MB Bank
+/// Khối "Giao dịch gần đây" chuẩn phong cách Moneda
 class RecentTransactionsCard extends StatelessWidget {
   final List<TransactionItem> transactions;
   final bool isBalanceHidden;

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// Bảng màu chuẩn phong cách MB Bank đơn sắc & hiện đại
+/// Bảng màu chuẩn phong cách Moneda tối giản & hiện đại
 class AppColors {
   AppColors._();
 
-  // MB Bank Signature Blues
+  // Moneda Signature Blues
   /// Màu nền Banner, Bottom Bar, nút chính (#1E40AF)
   static const Color primaryBlue = Color(0xFF1E40AF);
 

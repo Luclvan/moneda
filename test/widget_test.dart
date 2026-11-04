@@ -524,7 +524,7 @@ void main() {
       expect(find.text('Thao tác thành công!'), findsNothing);
     });
 
-    testWidgets('showMbDeleteConfirmDialog renders MB style dialog and handles actions',
+    testWidgets('showMbDeleteConfirmDialog renders Moneda style dialog and handles actions',
         (WidgetTester tester) async {
       bool? dialogResult;
 
