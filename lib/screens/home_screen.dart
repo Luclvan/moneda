@@ -47,6 +47,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _applyCachedData();
+    _restoreCacheAndLoadDashboardData();
+  }
+
+  void _applyCachedData() {
     if (_monedaService.hasHomeCache) {
       _settings = AppSettings.fromJson(MonedaService.cachedSettings!);
       _jars = {
@@ -62,7 +67,20 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       _isLoading = false;
     }
-    _loadDashboardData();
+  }
+
+  Future<void> _restoreCacheAndLoadDashboardData() async {
+    // Nếu chưa có cache trong RAM, khôi phục từ storage
+    if (!_monedaService.hasHomeCache) {
+      await _monedaService.restoreCacheFromStorage();
+      if (_monedaService.hasHomeCache && mounted) {
+        setState(() {
+          _applyCachedData();
+        });
+      }
+    }
+    // Tải dữ liệu mới song song từ Supabase chạy ngầm
+    await _loadDashboardData();
   }
 
   Future<void> _loadDashboardData() async {
@@ -72,11 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _errorMessage = null;
       });
 
-      final results = await Future.wait([
-        _monedaService.getDashboardData(),
-        _monedaService.getUserProfile(),
-      ]);
-      final data = results[0] as HomeDashboardData;
+      final data = await _monedaService.getDashboardData();
 
       if (!mounted) return;
       setState(() {
@@ -88,7 +102,9 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Không thể tải dữ liệu: $e';
+        if (_settings == null) {
+          _errorMessage = 'Không thể tải dữ liệu: $e';
+        }
         _isLoading = false;
       });
     }

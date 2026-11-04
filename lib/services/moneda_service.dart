@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -90,6 +91,63 @@ class MonedaService {
 
   static const String _keySavedUsername = 'saved_username';
   static const String _keySavedFullName = 'saved_full_name';
+  static const String _keyHomeCachePrefix = 'moneda_home_cache_';
+  static const String _keyLastUserId = 'moneda_last_user_id';
+
+  /// Lưu nhanh bản chụp bộ nhớ đệm (JSON ~3KB) theo currentUserId vào SharedPreferences
+  Future<void> saveCacheToStorage() async {
+    final uid = currentUserId;
+    if (uid == null || uid.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheData = {
+        'settings': cachedSettings,
+        'jars': cachedJars,
+        'recent_transactions': cachedRecentTransactions,
+        'user_profile': cachedUserProfile,
+      };
+      await prefs.setString('$_keyHomeCachePrefix$uid', jsonEncode(cacheData));
+      await prefs.setString(_keyLastUserId, uid);
+    } catch (e) {
+      debugPrint('Error saving cache to storage: $e');
+    }
+  }
+
+  /// Khôi phục nhanh bản chụp bộ nhớ đệm từ SharedPreferences vào các biến static
+  Future<void> restoreCacheFromStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final uid = currentUserId ?? prefs.getString(_keyLastUserId);
+      if (uid == null || uid.isEmpty) return;
+
+      final rawJson = prefs.getString('$_keyHomeCachePrefix$uid');
+      if (rawJson == null || rawJson.isEmpty) return;
+
+      final Map<String, dynamic> cacheData =
+          Map<String, dynamic>.from(jsonDecode(rawJson) as Map);
+
+      if (cacheData['settings'] != null) {
+        cachedSettings =
+            Map<String, dynamic>.from(cacheData['settings'] as Map);
+      }
+      if (cacheData['jars'] != null) {
+        cachedJars = (cacheData['jars'] as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      }
+      if (cacheData['recent_transactions'] != null) {
+        cachedRecentTransactions = (cacheData['recent_transactions'] as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      }
+      if (cacheData['user_profile'] != null) {
+        cachedUserProfile =
+            Map<String, dynamic>.from(cacheData['user_profile'] as Map);
+      }
+    } catch (e) {
+      debugPrint('Error restoring cache from storage: $e');
+    }
+  }
 
   String _toInternalEmail(String userId) {
     final cleanId = userId.trim().toLowerCase();
@@ -413,9 +471,19 @@ class MonedaService {
 
   /// Đăng xuất khỏi hệ thống & xóa sạch cache
   Future<void> signOut() async {
+    final uid = currentUserId;
     clearCache();
     cachedUserProfile = null;
     lastLoginPassword = null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (uid != null && uid.isNotEmpty) {
+        await prefs.remove('$_keyHomeCachePrefix$uid');
+      }
+      await prefs.remove(_keyLastUserId);
+    } catch (e) {
+      debugPrint('Error removing cache from storage: $e');
+    }
     try {
       await _supabase.auth.signOut();
     } catch (e) {
@@ -575,19 +643,25 @@ class MonedaService {
     }
   }
 
-  /// Tải toàn bộ dữ liệu cho Trang chủ
+  /// Tải toàn bộ dữ liệu cho Trang chủ song song cùng lúc bằng Future.wait
   Future<HomeDashboardData> getDashboardData() async {
     final results = await Future.wait([
       getAppSettings(),
       getJars(),
       getRecentTransactions(limit: 10),
+      getUserProfile(),
     ]);
 
-    return HomeDashboardData(
+    final data = HomeDashboardData(
       settings: results[0] as AppSettings,
       jars: results[1] as Map<String, Jar>,
       recentTransactions: results[2] as List<TransactionItem>,
     );
+
+    // Lưu đệm nhanh vào SharedPreferences
+    await saveCacheToStorage();
+
+    return data;
   }
 
   /// Lấy danh sách tên các nguồn thu nhập không trùng lặp
@@ -1750,7 +1824,9 @@ class MonedaService {
         getAppSettings(),
         getJars(),
         getRecentTransactions(),
+        getUserProfile(),
       ]);
+      await saveCacheToStorage();
     } catch (_) {}
   }
 
