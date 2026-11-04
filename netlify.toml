@@ -1,3 +1,0 @@
-[build]
-  command = "if cd flutter; then git pull && cd .. ; else git clone -b stable https://github.com/flutter/flutter.git; fi && ./flutter/bin/flutter build web --release"
-  publish = "build/web"

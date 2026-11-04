@@ -5,6 +5,7 @@
 [![Flutter CI](https://github.com/levanluc/moneda/actions/workflows/ci.yml/badge.svg)](https://github.com/levanluc/moneda/actions)
 [![Flutter](https://img.shields.io/badge/Flutter-3.13%2B-02569B?logo=flutter)](https://flutter.dev)
 [![Supabase](https://img.shields.io/badge/Supabase-Database%20%26%20Auth-3ECF8E?logo=supabase)](https://supabase.com)
+[![Vercel](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel)](https://vercel.com)
 [![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20Web-blue)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)]()
 
@@ -77,10 +78,9 @@ flowchart TD
 - **Slider tỷ lệ 3 hũ:** Thuật toán tự cân đối 3 trục, khi kéo bất kỳ thanh nào thì 2 thanh còn lại tự điều chỉnh để tổng luôn duy trì chính xác 100% ở mọi biên độ (kể cả chạm 0% hoặc 100%).
 - **Chuyển tiền nội bộ:** Hỗ trợ linh hoạt chuyển tiền giữa các hũ khi phát sinh nhu cầu đột xuất.
 
-### 8. Bảo mật Sinh trắc học Face ID & Vân tay Native
-- Biểu tượng **Face ID (Apple)** và **Vân tay (Samsung)** vẽ chuẩn từng nét bằng vector `CustomPainter`.
-- Tích hợp `local_auth` xác thực phần cứng và `flutter_secure_storage` lưu thông tin đăng nhập an toàn trong Keychain / Keystore.
-- Tự động nhận diện Face ID để đăng nhập 1 chạm vào app.
+### 8. Bảo mật tài khoản & Xác thực người dùng
+- Hệ thống xác thực Supabase Auth bảo vệ toàn bộ dữ liệu tài chính theo từng `user_id`.
+- Tự động duy trì phiên đăng nhập (Session Persistence) trên Safari / iPhone PWA và hỗ trợ đổi mật khẩu nhanh.
 
 ---
 
@@ -140,12 +140,36 @@ cd ..
 flutter run -d ios
 ```
 
-### 4. Kiểm tra mã nguồn & Chạy kiểm thử tự động
+### 4. Triển khai & Cập nhật Production lên Vercel
+
+Moneda được cấu hình tối ưu định tuyến SPA và tự động làm mới bộ nhớ đệm PWA trên **Vercel** thông qua file `vercel.json`.
+
+#### Cách 1: Tự động qua Git (Khuyên dùng)
+Đẩy mã nguồn lên GitHub, Vercel sẽ tự động kích hoạt tiến trình build và cập nhật phiên bản mới:
+```bash
+git add .
+git commit -m "feat: release new version"
+git push origin main
+```
+
+#### Cách 2: Triển khai nhanh bằng Vercel CLI
+```bash
+# 1. Build phiên bản Flutter Web Release
+flutter build web --release
+
+# 2. Đẩy cập nhật nhanh lên đúng link chính thức (Production URL) của Vercel
+vercel --prod
+```
+
+> [!TIP]
+> Cấu hình trong `vercel.json` thiết lập `Cache-Control: no-cache, no-store, must-revalidate` cho `index.html` và `flutter_service_worker.js`, giúp iPhone PWA tự động cập nhật ngay khi mở ứng dụng từ Màn hình chính mà không cần xóa cache thủ công.
+
+### 5. Kiểm tra mã nguồn & Chạy kiểm thử tự động
 - Kiểm tra phân tích tĩnh (linter):
   ```bash
   flutter analyze
   ```
-- Chạy toàn bộ bộ kiểm thử tự động (144 tests):
+- Chạy toàn bộ bộ kiểm thử tự động (129 tests):
   ```bash
   flutter test -r expanded
   ```
