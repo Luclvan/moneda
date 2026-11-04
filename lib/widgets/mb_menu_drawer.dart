@@ -6,7 +6,7 @@ import '../screens/user_profile_screen.dart';
 import '../services/moneda_service.dart';
 import 'mb_feedback.dart';
 
-/// Menu ngăn kéo trượt từ bên phải sang (chuẩn phong cách MB Bank)
+/// Menu ngăn kéo trượt từ bên phải sang (chuẩn phong cách Moneda)
 class MbMenuDrawer extends StatefulWidget {
   final VoidCallback? onOpenUtilities;
   final VoidCallback? onProfileUpdated;

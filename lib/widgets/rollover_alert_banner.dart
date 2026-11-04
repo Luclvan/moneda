@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 
-/// Banner nhắc nhở quyết toán đầu tháng chuẩn MB Bank Style
+/// Banner nhắc nhở quyết toán đầu tháng chuẩn phong cách Moneda
 class RolloverAlertBanner extends StatelessWidget {
   final VoidCallback onTransferToSave;
   final VoidCallback onKeepJars;

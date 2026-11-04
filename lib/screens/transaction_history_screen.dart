@@ -32,7 +32,7 @@ class _HistoryEntry {
   });
 }
 
-/// Màn hình Lịch sử giao dịch tổng hợp (chuẩn phong cách MB Bank)
+/// Màn hình Lịch sử giao dịch tổng hợp (chuẩn phong cách Moneda)
 /// Gom toàn bộ Thu nhập và Chi tiêu với 5 Tab lọc linh hoạt:
 /// 'ALL', 'INCOME', 'NEED', 'WANT', 'SAVE'
 class TransactionHistoryScreen extends StatefulWidget {
@@ -1034,7 +1034,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                       ),
                       child: Row(
                         children: [
-                          // Icon mũi tên lên màu xanh MB Bank
+                          // Icon mũi tên lên màu xanh Moneda
                           Container(
                             width: 40,
                             height: 40,

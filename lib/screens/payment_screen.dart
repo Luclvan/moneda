@@ -9,7 +9,7 @@ import '../utils/moneda_validator.dart';
 import '../widgets/floating_suggestions_field.dart';
 import '../widgets/mb_feedback.dart';
 
-/// Màn hình Thanh toán chi tiêu (chuẩn phong cách MB Bank)
+/// Màn hình Thanh toán chi tiêu (chuẩn phong cách Moneda)
 class PaymentScreen extends StatefulWidget {
   final String? initialJarType;
 

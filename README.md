@@ -1,6 +1,6 @@
 # Moneda 🪙
 > **Quản lý tài chính cá nhân thông minh theo quy tắc 3 hũ (50/30/20)**  
-> Phong cách ngân hàng hiện đại (MB Bank Style) — Tối ưu hóa cho **iOS Native** & **Web**.
+> Phong cách thiết kế tối giản, hiện đại chuẩn ứng dụng tài chính số với tông màu Xanh biển đậm (`#1E40AF`), Trắng và Xám trung tính — Tối ưu hóa cho **iOS Native** & **Web**.
 
 [![Flutter CI](https://github.com/levanluc/moneda/actions/workflows/ci.yml/badge.svg)](https://github.com/levanluc/moneda/actions)
 [![Flutter](https://img.shields.io/badge/Flutter-3.13%2B-02569B?logo=flutter)](https://flutter.dev)
@@ -89,7 +89,7 @@ flowchart TD
 | Thành phần | Công nghệ sử dụng | Mục đích |
 |---|---|---|
 | **Framework** | [Flutter 3.x](https://flutter.dev) (Dart 3.x) | Ứng dụng đa nền tảng tối ưu cho iOS và Web |
-| **Giao diện** | Material 3 + Custom MB Bank Style | Màu chủ đạo `#1E40AF`, `#F8FAFC`, `#FFFFFF`, bo góc mềm 16-24px |
+| **Giao diện** | Material 3 + Custom Moneda Design | Màu chủ đạo `#1E40AF`, `#F8FAFC`, `#FFFFFF`, bo góc mềm 16-24px |
 | **Backend & CSDL** | [Supabase](https://supabase.com) (PostgreSQL 15) | Lưu trữ đám mây, Row Level Security (RLS), Stored Procedures (RPC) |
 | **Xác thực** | Supabase Auth | Đăng nhập tài khoản & phân quyền dữ liệu theo user_id |
 | **Bảo mật cục bộ** | `flutter_secure_storage` | Lưu trữ token và mật khẩu mã hóa an toàn |

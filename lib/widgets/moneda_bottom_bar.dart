@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 
-/// Thanh Bottom Navigation Bar 5 nút chuẩn phong cách MB Bank:
+/// Thanh Bottom Navigation Bar 5 nút chuẩn phong cách Moneda:
 /// 1. Trang chủ (Icons.home)
 /// 2. Báo cáo (Icons.bar_chart_rounded)
 /// 3. Thanh toán (Nút nổi bật ở giữa: ô vuông trắng 50x50, icon Icons.grid_view_rounded màu #1E40AF)

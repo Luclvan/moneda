@@ -9,7 +9,7 @@ import '../utils/moneda_validator.dart';
 import '../widgets/floating_suggestions_field.dart';
 import '../widgets/mb_feedback.dart';
 
-/// Màn hình Nhận tiền vào hũ (chuẩn phong cách MB Bank)
+/// Màn hình Nhận tiền vào hũ (chuẩn phong cách Moneda)
 class ReceiveMoneyScreen extends StatefulWidget {
   final String initialTargetJar;
 

@@ -4,7 +4,7 @@ import '../core/utils/currency_formatter.dart';
 import '../models/app_settings.dart';
 import '../models/jar.dart';
 
-/// Thẻ số dư trượt ngang và Avatar người dùng (phong cách MB Bank)
+/// Thẻ số dư trượt ngang và Avatar người dùng (phong cách Moneda)
 class BalanceCarousel extends StatefulWidget {
   final AppSettings settings;
   final Map<String, Jar> jars;

@@ -5,7 +5,7 @@ import '../models/jar.dart';
 import '../services/moneda_service.dart';
 import '../widgets/mb_feedback.dart';
 
-/// Màn hình Kết chuyển sang Hũ Save (chuẩn MB Bank Style)
+/// Màn hình Kết chuyển sang Hũ Save (chuẩn phong cách Moneda)
 class RolloverTransferScreen extends StatefulWidget {
   const RolloverTransferScreen({super.key});
 

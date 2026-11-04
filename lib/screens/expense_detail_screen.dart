@@ -8,7 +8,7 @@ import '../services/moneda_service.dart';
 import '../widgets/mb_feedback.dart';
 import 'payment_screen.dart';
 
-/// Màn hình Chi tiết chi tiêu (chuẩn phong cách MB Bank)
+/// Màn hình Chi tiết chi tiêu (chuẩn phong cách Moneda)
 class ExpenseDetailScreen extends StatefulWidget {
   final String initialJarFilter;
 

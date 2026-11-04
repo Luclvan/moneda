@@ -105,7 +105,7 @@ void main() {
   });
 
   group('MbMenuDrawer Widget Tests', () {
-    testWidgets('renders all MB Bank layout sections and elements',
+    testWidgets('renders all Moneda layout sections and elements',
         (tester) async {
       MonedaService.cachedUserProfile = {
         'username': 'levanluc',
@@ -365,7 +365,7 @@ void main() {
   });
 
   group('AppSettingsScreen Widget Tests', () {
-    testWidgets('renders all MB Bank layout sections and elements',
+    testWidgets('renders all Moneda layout sections and elements',
         (tester) async {
       final mockService = MockProfileService();
       MonedaService.cachedUserProfile = {
