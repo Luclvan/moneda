@@ -141,6 +141,14 @@ void main() {
         'Tên đăng nhập này đã tồn tại, vui lòng chọn tên khác',
       );
       expect(
+        MonedaService.formatAuthErrorMessage('User already exists'),
+        'Tên đăng nhập này đã tồn tại, vui lòng chọn tên khác',
+      );
+      expect(
+        MonedaService.formatAuthErrorMessage('Exception: Tên đăng nhập này đã tồn tại, vui lòng chọn tên khác'),
+        'Tên đăng nhập này đã tồn tại, vui lòng chọn tên khác',
+      );
+      expect(
         MonedaService.formatAuthErrorMessage('over_email_send_rate_limit'),
         'Bạn thao tác quá nhanh, vui lòng đợi 1 phút hoặc tắt Confirm Email trên Supabase',
       );
@@ -158,6 +166,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('MONEDA'), findsOneWidget);
+      final popScope = tester.widget<PopScope>(find.byType(PopScope));
+      expect(popScope.canPop, isFalse);
       expect(find.text('Chào mừng bạn đến với Moneda'), findsOneWidget);
       expect(find.text('Tên đăng nhập'), findsOneWidget);
       expect(find.text('Mật khẩu'), findsOneWidget);

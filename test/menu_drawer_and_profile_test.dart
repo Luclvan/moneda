@@ -352,6 +352,9 @@ void main() {
 
       expect(find.byType(MbMenuDrawer), findsNothing);
 
+      final popScope = tester.widget<PopScope>(find.byType(PopScope));
+      expect(popScope.canPop, isFalse);
+
       // Tap ☰ icon
       await tester.tap(find.byIcon(Icons.menu_rounded));
       await tester.pumpAndSettle();

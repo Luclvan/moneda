@@ -154,6 +154,11 @@ class MonedaService {
   static String formatAuthErrorMessage(Object error) {
     final msg = error.toString().toLowerCase();
 
+    if (msg.contains('tên đăng nhập này đã tồn tại') ||
+        msg.contains('tên đăng nhập đã tồn tại')) {
+      return 'Tên đăng nhập này đã tồn tại, vui lòng chọn tên khác';
+    }
+
     if (msg.contains('invalid login credentials') ||
         msg.contains('invalid_credentials') ||
         msg.contains('invalid grant') ||
@@ -163,8 +168,7 @@ class MonedaService {
 
     if (msg.contains('user already registered') ||
         msg.contains('user_already_exists') ||
-        msg.contains('already exists') ||
-        msg.contains('duplicate key')) {
+        msg.contains('already exists')) {
       return 'Tên đăng nhập này đã tồn tại, vui lòng chọn tên khác';
     }
 
@@ -206,8 +210,28 @@ class MonedaService {
   }) async {
     final cleanUsername = username.trim();
     final cleanFullName = fullName.trim();
+    final lowerUsername = cleanUsername.toLowerCase();
     final email = _toInternalEmail(cleanUsername);
 
+    // 1. Kiểm tra trực tiếp trong bảng user_profiles xem username đã tồn tại chưa
+    try {
+      final existing = await _supabase
+          .from('user_profiles')
+          .select('username')
+          .ilike('username', lowerUsername)
+          .limit(1);
+
+      if (existing.isNotEmpty) {
+        throw Exception('Tên đăng nhập này đã tồn tại, vui lòng chọn tên khác');
+      }
+    } catch (e) {
+      if (e.toString().contains('Tên đăng nhập này đã tồn tại')) {
+        rethrow;
+      }
+      debugPrint('Pre-check user_profiles warning (ignored): $e');
+    }
+
+    // 2. Tạo tài khoản trong Supabase Auth
     final response = await _supabase.auth.signUp(
       email: email,
       password: password,
@@ -217,16 +241,62 @@ class MonedaService {
       },
     );
 
-    final uid = response.user!.id;
+    final uid = response.user?.id;
+    if (uid == null) {
+      throw Exception('Không thể khởi tạo người dùng, vui lòng thử lại');
+    }
 
-    await _supabase.rpc(
-      'initialize_or_claim_user_data',
-      params: {
-        'p_user_id': uid,
-        'p_username': cleanUsername,
-        'p_full_name': cleanFullName,
-      },
-    );
+    // 3. Khởi tạo dữ liệu người dùng (gọi RPC, nếu lỗi thì fallback tạo dữ liệu mặc định)
+    try {
+      await _supabase.rpc(
+        'initialize_or_claim_user_data',
+        params: {
+          'p_user_id': uid,
+          'p_username': cleanUsername,
+          'p_full_name': cleanFullName,
+        },
+      );
+    } catch (rpcError) {
+      debugPrint(
+        'RPC initialize_or_claim_user_data failed, running fallback: $rpcError',
+      );
+      try {
+        await _supabase.from('user_profiles').upsert({
+          'user_id': uid,
+          'username': cleanUsername,
+          'full_name': cleanFullName,
+        });
+        await _supabase.from('app_settings').upsert({
+          'user_id': uid,
+          'total_balance': 0,
+          'need_ratio': 50,
+          'want_ratio': 30,
+          'save_ratio': 20,
+        });
+        await _supabase.from('jars').upsert([
+          {
+            'user_id': uid,
+            'jar_type': 'NEED',
+            'jar_name': 'Chi tiêu thiết yếu',
+            'balance': 0,
+          },
+          {
+            'user_id': uid,
+            'jar_type': 'WANT',
+            'jar_name': 'Chi tiêu cá nhân',
+            'balance': 0,
+          },
+          {
+            'user_id': uid,
+            'jar_type': 'SAVE',
+            'jar_name': 'Tiết kiệm & Đầu tư',
+            'balance': 0,
+          },
+        ]);
+      } catch (fallbackError) {
+        debugPrint('Fallback initialization error (non-fatal): $fallbackError');
+      }
+    }
 
     lastLoginUsername = cleanUsername;
     lastLoginPassword = password;
