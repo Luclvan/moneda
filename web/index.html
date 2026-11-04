@@ -46,10 +46,23 @@
       overscroll-behavior-y: none;
       -webkit-touch-callout: none;
       -webkit-user-select: none;
+      user-select: none;
+      touch-action: pan-x pan-y;
     }
   </style>
 </head>
 <body>
+  <script>
+    // Chặn iOS Safari/PWA edge-swipe back/forward gesture làm reload stack
+    window.addEventListener('touchstart', function(e) {
+      if (e.touches.length === 1) {
+        var touchX = e.touches[0].clientX;
+        if (touchX <= 28 || touchX >= window.innerWidth - 28) {
+          e.preventDefault();
+        }
+      }
+    }, { passive: false });
+  </script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
