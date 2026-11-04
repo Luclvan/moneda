@@ -7,6 +7,7 @@ import 'core/config/supabase_config.dart';
 import 'core/constants/app_colors.dart';
 import 'screens/auth_screen.dart';
 import 'screens/home_screen.dart';
+import 'services/moneda_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +18,9 @@ void main() async {
     // ignore: deprecated_member_use
     anonKey: SupabaseConfig.supabaseAnonKey,
   );
+
+  // Khôi phục bộ nhớ đệm từ storage cho Trang chủ
+  await MonedaService().restoreCacheFromStorage();
 
   // Cấu hình thanh trạng thái hệ thống
   SystemChrome.setSystemUIOverlayStyle(

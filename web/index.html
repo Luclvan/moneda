@@ -24,9 +24,9 @@
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Moneda">
+  <meta name="apple-web-app-capable" content="yes">
+  <meta name="apple-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-web-app-title" content="Moneda">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
@@ -49,9 +49,94 @@
       user-select: none;
       touch-action: pan-x pan-y;
     }
+
+    #moneda-splash {
+      position: fixed;
+      inset: 0;
+      background-color: #1E40AF;
+      z-index: 99999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.35s ease-out;
+    }
+
+    .splash-brand {
+      color: #FFFFFF;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 3px;
+      margin-bottom: 24px;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .splash-progress-track {
+      width: 160px;
+      height: 4px;
+      background-color: rgba(255, 255, 255, 0.22);
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .splash-progress-bar {
+      width: 15%;
+      height: 100%;
+      background-color: #FFFFFF;
+      border-radius: 999px;
+      position: relative;
+      overflow: hidden;
+      animation: splashProgress 2.4s cubic-bezier(0.1, 0.6, 0.2, 1) forwards;
+      transition: width 0.2s ease-out;
+    }
+
+    .splash-progress-bar::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 60px;
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.8) 50%, rgba(255, 255, 255, 0) 100%);
+      animation: splashShimmer 1.5s infinite;
+    }
+
+    @keyframes splashProgress {
+      0% {
+        width: 15%;
+      }
+      45% {
+        width: 60%;
+      }
+      80% {
+        width: 85%;
+      }
+      100% {
+        width: 92%;
+      }
+    }
+
+    @keyframes splashShimmer {
+      0% {
+        transform: translateX(-100%);
+      }
+      100% {
+        transform: translateX(180px);
+      }
+    }
   </style>
 </head>
 <body>
+  <div id="moneda-splash">
+    <div class="splash-brand">MONEDA</div>
+    <div class="splash-progress-track">
+      <div class="splash-progress-bar"></div>
+    </div>
+  </div>
+
   <script>
     // Chặn iOS Safari/PWA edge-swipe back/forward gesture làm reload stack
     window.addEventListener('touchstart', function(e) {
@@ -62,6 +147,25 @@
         }
       }
     }, { passive: false });
+
+    // Khi Flutter hoàn tất nạp frame đầu tiên: thanh tiến trình vọt lên 100%, làm mờ và gỡ bỏ splash
+    window.addEventListener('flutter-first-frame', function() {
+      var splash = document.getElementById('moneda-splash');
+      if (!splash) return;
+      var bar = splash.querySelector('.splash-progress-bar');
+      if (bar) {
+        bar.style.animation = 'none';
+        bar.style.width = '100%';
+      }
+      setTimeout(function() {
+        splash.style.opacity = '0';
+        setTimeout(function() {
+          if (splash && splash.parentNode) {
+            splash.remove();
+          }
+        }, 350);
+      }, 150);
+    });
   </script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
