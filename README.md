@@ -91,88 +91,35 @@ flowchart TD
 | **Framework** | [Flutter 3.x](https://flutter.dev) (Dart 3.x) | Ứng dụng đa nền tảng tối ưu cho iOS và Web |
 | **Giao diện** | Material 3 + Custom MB Bank Style | Màu chủ đạo `#1E40AF`, `#F8FAFC`, `#FFFFFF`, bo góc mềm 16-24px |
 | **Backend & CSDL** | [Supabase](https://supabase.com) (PostgreSQL 15) | Lưu trữ đám mây, Row Level Security (RLS), Stored Procedures (RPC) |
-| **Xác thực** | Supabase Auth + Local Auth | Đăng nhập tài khoản & xác thực Face ID / Vân tay |
-| **Bảo mật cục bộ** | `flutter_secure_storage` | Lưu trữ token và mật khẩu mã hóa trong Keychain của iOS |
+| **Xác thực** | Supabase Auth | Đăng nhập tài khoản & phân quyền dữ liệu theo user_id |
+| **Bảo mật cục bộ** | `flutter_secure_storage` | Lưu trữ token và mật khẩu mã hóa an toàn |
 | **Bộ nhớ đệm** | In-Memory Zero-Spinner Caching | Mở app hiển thị số dư tức thì 0.0s, không màn hình chờ xoay vòng |
 | **Xử lý bàn phím** | `GestureDetector` Root Unfocus | Chạm ra ngoài vùng nhập để hạ bàn phím số iOS mượt mà |
-| **Kiểm thử & CI** | Flutter Test + GitHub Actions | 144 unit & widget tests tự động chạy kiểm thử 100% pass |
+| **Kiểm thử & CI** | Flutter Test + GitHub Actions | 129 unit & widget tests tự động chạy kiểm thử 100% pass |
 
 ---
 
-## 📱 4. Hướng dẫn cài đặt & Chạy ứng dụng
+## 📲 Hướng dẫn Cài đặt Ứng dụng (iPhone & Android)
 
-### 1. Yêu cầu môi trường
-- Flutter SDK `>= 3.13.0`
-- Xcode 15+ (đối với bản iOS)
-- CocoaPods `>= 1.12.0`
-- Trình duyệt Chrome / Safari
+Bạn có thể cài đặt **Moneda** trực tiếp ra màn hình chính điện thoại chỉ trong **10 giây** mà không cần tải qua kho ứng dụng:
 
-### 2. Cấu hình dự án
-1. Clone mã nguồn về máy:
-   ```bash
-   git clone https://github.com/levanluc/moneda.git
-   cd moneda
-   ```
-2. Cài đặt các gói phụ thuộc:
-   ```bash
-   flutter pub get
-   ```
-3. Cấu hình kết nối Supabase trong file `lib/core/config/supabase_config.dart`:
-   ```dart
-   class SupabaseConfig {
-     static const String supabaseUrl = 'YOUR_SUPABASE_URL';
-     static const String supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
-   }
-   ```
+### 🍎 1. Đối với iPhone / iPad (iOS)
+1. Mở trình duyệt **Safari** trên iPhone và truy cập vào đường link chính thức của ứng dụng trên **Vercel**.
+2. Nhấn vào nút **Chia sẻ (Share)** (biểu tượng ô vuông có mũi tên hướng lên ở thanh công cụ dưới đáy màn hình).
+3. Cuộn xuống và chọn **"Thêm vào Màn hình chính" (Add to Home Screen)**.
+4. Nhấn **Thêm (Add)** ở góc trên bên phải. Biểu tượng **Moneda** sẽ xuất hiện ngay ngoài màn hình chính như một ứng dụng độc lập toàn màn hình!
 
-### 3. Chạy ứng dụng
+### 🤖 2. Đối với Điện thoại Android (Samsung, Xiaomi, OPPO...)
+1. Mở trình duyệt **Chrome** và truy cập vào đường link **Vercel** của ứng dụng.
+2. Nhấn vào thông báo **"Cài đặt ứng dụng" (Install App)** hiện lên trên màn hình *(hoặc nhấn vào biểu tượng **3 chấm dọc `⋮`** ở góc trên bên phải Chrome $\rightarrow$ chọn **"Cài đặt ứng dụng" / "Thêm vào màn hình chính"**)*.
+3. Nhấn **Cài đặt (Install)** để hoàn tất.
 
-#### 👉 Chạy trên Web:
-```bash
-flutter run -d chrome
-```
+---
 
-#### 👉 Chạy trên iPhone thật hoặc Simulator iOS:
-```bash
-cd ios
-pod install
-cd ..
-flutter run -d ios
-```
-
-### 4. Triển khai & Cập nhật Production lên Vercel
-
-Moneda được cấu hình tối ưu định tuyến SPA và tự động làm mới bộ nhớ đệm PWA trên **Vercel** thông qua file `vercel.json`.
-
-#### Cách 1: Tự động qua Git (Khuyên dùng)
-Đẩy mã nguồn lên GitHub, Vercel sẽ tự động kích hoạt tiến trình build và cập nhật phiên bản mới:
-```bash
-git add .
-git commit -m "feat: release new version"
-git push origin main
-```
-
-#### Cách 2: Triển khai nhanh bằng Vercel CLI
-```bash
-# 1. Build phiên bản Flutter Web Release
-flutter build web --release
-
-# 2. Đẩy cập nhật nhanh lên đúng link chính thức (Production URL) của Vercel
-vercel --prod
-```
-
-> [!TIP]
-> Cấu hình trong `vercel.json` thiết lập `Cache-Control: no-cache, no-store, must-revalidate` cho `index.html` và `flutter_service_worker.js`, giúp iPhone PWA tự động cập nhật ngay khi mở ứng dụng từ Màn hình chính mà không cần xóa cache thủ công.
-
-### 5. Kiểm tra mã nguồn & Chạy kiểm thử tự động
-- Kiểm tra phân tích tĩnh (linter):
-  ```bash
-  flutter analyze
-  ```
-- Chạy toàn bộ bộ kiểm thử tự động (129 tests):
-  ```bash
-  flutter test -r expanded
-  ```
+## 🛠️ Dành cho Lập trình viên (Developer)
+- **Kiểm tra phân tích tĩnh:** `flutter analyze`
+- **Chạy toàn bộ kiểm thử tự động:** `flutter test -r expanded`
+- **Triển khai Production lên Vercel:** `flutter build web --release && vercel --prod`
 
 ---
 
