@@ -134,9 +134,9 @@ class _AuthScreenState extends State<AuthScreen> {
 
       if (!mounted) return;
 
-      Navigator.pushReplacement(
-        context,
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (route) => false,
       );
     } catch (e) {
       if (!mounted) return;
@@ -251,33 +251,36 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.paddingOf(context).top;
 
-    return Scaffold(
-      backgroundColor: AppColors.backgroundGray,
-      body: SingleChildScrollView(
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        child: Column(
-          children: [
-            // Header trên cùng màu xanh biển #1E40AF có logo MONEDA ở góc trên trái
-            _buildTopHeader(topPadding),
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: AppColors.backgroundGray,
+        body: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: Column(
+            children: [
+              // Header trên cùng màu xanh biển #1E40AF có logo MONEDA ở góc trên trái
+              _buildTopHeader(topPadding),
 
-            // Card trắng chính ở giữa bo góc 24px
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-              child: _buildMainAuthCard(),
-            ),
-
-            // Chân trang ngoài Card
-            const Text(
-              'Phiên bản v1.0.0   Phiên bản mới nhất',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+              // Card trắng chính ở giữa bo góc 24px
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                child: _buildMainAuthCard(),
               ),
-            ),
-            const SizedBox(height: 24),
-          ],
+
+              // Chân trang ngoài Card
+              const Text(
+                'Phiên bản v1.0.0   Phiên bản mới nhất',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );

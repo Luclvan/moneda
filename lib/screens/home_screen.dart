@@ -182,104 +182,146 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: AppColors.backgroundGray,
-      endDrawer: MbMenuDrawer(
-        onOpenUtilities: () => _openSettingsModal(initialTab: 0),
-        onProfileUpdated: () {
-          _loadDashboardData();
-        },
-      ),
-      // A. Top AppBar màu xanh biển đậm (#1E40AF)
-      appBar: AppBar(
-        backgroundColor: AppColors.primaryBlue,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        titleSpacing: 16,
-        title: const Text(
-          'MONEDA',
-          style: TextStyle(
-            color: AppColors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.1,
-          ),
+    final topPadding = MediaQuery.paddingOf(context).top;
+
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        key: _scaffoldKey,
+        backgroundColor: AppColors.backgroundGray,
+        endDrawer: MbMenuDrawer(
+          onOpenUtilities: () => _openSettingsModal(initialTab: 0),
+          onProfileUpdated: () {
+            _loadDashboardData();
+          },
         ),
-        actions: [
-          _buildCircleButton(
-            icon: Icons.notifications_none_rounded,
-            onTap: _openRolloverTransferScreen,
-          ),
-          const SizedBox(width: 8),
-          _buildCircleButton(
-            icon: Icons.menu_rounded,
-            onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
-          ),
-          const SizedBox(width: 16),
-        ],
+        // F. Thanh Bottom Navigation Bar 5 nút cố định ở đáy
+        bottomNavigationBar: MonedaBottomBar(
+          currentIndex: _bottomNavIndex,
+          onTap: (index) {
+            setState(() {
+              _bottomNavIndex = index;
+            });
+          },
+          onReportTap: _navigateToReport,
+          onPaymentTap: _navigateToPayment,
+          onReceiveTap: _navigateToReceiveMoney,
+          onGoalsTap: _navigateToSavingGoals,
+        ),
+        body: SafeArea(
+          top: false,
+          child: _buildBody(topPadding),
+        ),
       ),
-
-      // F. Thanh Bottom Navigation Bar 5 nút cố định ở đáy
-      bottomNavigationBar: MonedaBottomBar(
-        currentIndex: _bottomNavIndex,
-        onTap: (index) {
-          setState(() {
-            _bottomNavIndex = index;
-          });
-        },
-        onReportTap: _navigateToReport,
-        onPaymentTap: _navigateToPayment,
-        onReceiveTap: _navigateToReceiveMoney,
-        onGoalsTap: _navigateToSavingGoals,
-      ),
-
-      body: _buildBody(),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildTopBannerHeader(double topPadding) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, topPadding + 10, 16, 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            'MONEDA',
+            style: TextStyle(
+              color: AppColors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.1,
+            ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildCircleButton(
+                icon: Icons.notifications_none_rounded,
+                onTap: _openRolloverTransferScreen,
+              ),
+              const SizedBox(width: 8),
+              _buildCircleButton(
+                icon: Icons.menu_rounded,
+                onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody(double topPadding) {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(
-          color: AppColors.primaryBlue,
-        ),
+      return Column(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              color: AppColors.primaryBlue,
+              borderRadius: BorderRadius.vertical(
+                bottom: Radius.circular(28),
+              ),
+            ),
+            child: _buildTopBannerHeader(topPadding),
+          ),
+          const Expanded(
+            child: Center(
+              child: CircularProgressIndicator(
+                color: AppColors.primaryBlue,
+              ),
+            ),
+          ),
+        ],
       );
     }
 
     if (_errorMessage != null && _settings == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.error_outline_rounded,
-                size: 48,
-                color: AppColors.errorRed,
+      return Column(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              color: AppColors.primaryBlue,
+              borderRadius: BorderRadius.vertical(
+                bottom: Radius.circular(28),
               ),
-              const SizedBox(height: 12),
-              Text(
-                _errorMessage!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.textDark,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _loadDashboardData,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryBlue,
-                  foregroundColor: AppColors.white,
-                ),
-                child: const Text('Thử lại'),
-              ),
-            ],
+            ),
+            child: _buildTopBannerHeader(topPadding),
           ),
-        ),
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.error_outline_rounded,
+                      size: 48,
+                      color: AppColors.errorRed,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.textDark,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _loadDashboardData,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryBlue,
+                        foregroundColor: AppColors.white,
+                      ),
+                      child: const Text('Thử lại'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       );
     }
 
@@ -300,7 +342,7 @@ class _HomeScreenState extends State<HomeScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           children: [
-            // B. Khu vực Banner xanh biển chứa Avatar & Thẻ số dư trượt ngang
+            // B. Khu vực Banner xanh biển tràn đỉnh tai thỏ
             Container(
               decoration: const BoxDecoration(
                 color: AppColors.primaryBlue,
@@ -311,6 +353,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  _buildTopBannerHeader(topPadding),
                   // Avatar & Thẻ số dư PageView trượt ngang
                   BalanceCarousel(
                     settings: settings,

@@ -187,6 +187,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ),
       body: SafeArea(
+        top: false,
         child: Column(
           children: [
             Expanded(

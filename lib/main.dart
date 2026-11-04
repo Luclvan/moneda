@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -52,15 +53,30 @@ class MonedaApp extends StatelessWidget {
           seedColor: AppColors.primaryBlue,
           primary: AppColors.primaryBlue,
         ),
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.fuchsia: CupertinoPageTransitionsBuilder(),
+          },
+        ),
       ),
       builder: (context, child) {
         // Bọc GestureDetector hạ bàn phím số khi chạm ngoài trên iPhone thật
         // Bọc giao diện trong khung căn giữa chuẩn Mobile (maxWidth: 430px)
+        final screenWidth = MediaQuery.sizeOf(context).width;
         return GestureDetector(
           behavior: HitTestBehavior.translucent,
           onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
           child: Container(
-            color: kIsWeb ? const Color(0xFFE2E8F0) : AppColors.backgroundGray,
+            color: kIsWeb
+                ? (screenWidth <= 430
+                    ? AppColors.primaryBlue
+                    : const Color(0xFFE2E8F0))
+                : AppColors.backgroundGray,
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 430),
