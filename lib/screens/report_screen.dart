@@ -54,6 +54,33 @@ class _ReportScreenState extends State<ReportScreen> {
       final settings = AppSettings.fromJson(MonedaService.cachedSettings!);
       final monthlyIncome = (cache['monthly_income'] as num?)?.toDouble() ?? 0.0;
       final allExpenses = List<Map<String, dynamic>>.from(cache['all_expenses'] as List? ?? []);
+
+      final needTarget = (cache['need_target'] as num?)?.toDouble() ??
+          (monthlyIncome > 0 ? monthlyIncome * (settings.needRatio / 100.0) : 0.0);
+      final wantTarget = (cache['want_target'] as num?)?.toDouble() ??
+          (monthlyIncome > 0 ? monthlyIncome * (settings.wantRatio / 100.0) : 0.0);
+      final saveTarget = (cache['save_target'] as num?)?.toDouble() ??
+          (monthlyIncome > 0 ? monthlyIncome * (settings.saveRatio / 100.0) : 0.0);
+
+      final needTargetPercent = (cache['need_target_percent'] as num?)?.toDouble() ??
+          (monthlyIncome > 0 ? (needTarget / monthlyIncome) * 100.0 : 0.0);
+      final wantTargetPercent = (cache['want_target_percent'] as num?)?.toDouble() ??
+          (monthlyIncome > 0 ? (wantTarget / monthlyIncome) * 100.0 : 0.0);
+      final saveTargetPercent = (cache['save_target_percent'] as num?)?.toDouble() ??
+          (monthlyIncome > 0 ? (saveTarget / monthlyIncome) * 100.0 : 0.0);
+
+      final targetAmounts = {
+        'NEED': needTarget,
+        'WANT': wantTarget,
+        'SAVE': saveTarget,
+      };
+
+      final targetPercents = {
+        'NEED': needTargetPercent,
+        'WANT': wantTargetPercent,
+        'SAVE': saveTargetPercent,
+      };
+
       final jarRatios = {
         'NEED': settings.needRatio,
         'WANT': settings.wantRatio,
@@ -62,6 +89,9 @@ class _ReportScreenState extends State<ReportScreen> {
       final Map<String, JarReport> jarsMap = {};
       for (final jarType in ['NEED', 'WANT', 'SAVE']) {
         final ratio = jarRatios[jarType] ?? 0;
+        final targetAmount = targetAmounts[jarType] ?? 0.0;
+        final targetPercent = targetPercents[jarType] ?? 0.0;
+
         final jarExpenses = allExpenses
             .where((e) =>
                 (e['jar_type'] as String? ?? '').toUpperCase() == jarType)
@@ -70,13 +100,12 @@ class _ReportScreenState extends State<ReportScreen> {
           0.0,
           (sum, e) => sum + ((e['amount'] as num?)?.toDouble() ?? 0.0),
         );
-        final targetAmount =
-            monthlyIncome > 0 ? monthlyIncome * (ratio / 100.0) : 0.0;
         final actualPercent =
             monthlyIncome > 0 ? (actualAmount / monthlyIncome) * 100.0 : 0.0;
         jarsMap[jarType] = JarReport(
           jarType: jarType,
           ratio: ratio,
+          targetPercent: targetPercent,
           targetAmount: targetAmount,
           actualAmount: actualAmount,
           actualPercent: actualPercent,
@@ -96,7 +125,7 @@ class _ReportScreenState extends State<ReportScreen> {
     _loadReport();
   }
 
-  Future<void> _loadReport() async {
+  Future<void> _loadReport({bool forceRefresh = false}) async {
     if (_reportData == null) {
       setState(() {
         _isLoading = true;
@@ -107,6 +136,7 @@ class _ReportScreenState extends State<ReportScreen> {
       final data = await _monedaService.getMonthlyReport(
         month: _selectedMonth,
         year: _selectedYear,
+        forceRefresh: forceRefresh,
       );
 
       if (!mounted) return;
@@ -313,7 +343,7 @@ class _ReportScreenState extends State<ReportScreen> {
         await _monedaService.deleteExpense(expense);
         if (!mounted) return;
         showMbTopToast(context, 'Đã xoá giao dịch thành công');
-        _loadReport();
+        _loadReport(forceRefresh: true);
       } catch (e) {
         if (!mounted) return;
         showMbTopToast(context, 'Lỗi khi xóa chi tiêu: $e');
@@ -329,7 +359,7 @@ class _ReportScreenState extends State<ReportScreen> {
       ),
     );
     if (mounted) {
-      _loadReport();
+      _loadReport(forceRefresh: true);
     }
   }
 
@@ -342,7 +372,7 @@ class _ReportScreenState extends State<ReportScreen> {
       ),
     );
     if (mounted) {
-      _loadReport();
+      _loadReport(forceRefresh: true);
     }
   }
 
@@ -354,7 +384,7 @@ class _ReportScreenState extends State<ReportScreen> {
       ),
     );
     if (mounted) {
-      _loadReport();
+      _loadReport(forceRefresh: true);
     }
   }
 
@@ -490,7 +520,7 @@ class _ReportScreenState extends State<ReportScreen> {
       body: RefreshIndicator(
         color: AppColors.primaryBlue,
         backgroundColor: AppColors.white,
-        onRefresh: _loadReport,
+        onRefresh: () => _loadReport(forceRefresh: true),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -682,7 +712,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
               // TẦNG 3: DANH SÁCH CATEGORY & HIỆU ỨNG XỔ DỌC ACCORDION
               Text(
-                'Chi tiết chi tiêu: Hũ $_selectedJarType (${selectedJarReport.ratio}%)',
+                'Chi tiết chi tiêu: Hũ $_selectedJarType (${selectedJarReport.targetPercent.toStringAsFixed(selectedJarReport.targetPercent.truncateToDouble() == selectedJarReport.targetPercent ? 0 : 1)}%)',
                 style: const TextStyle(
                   color: AppColors.textDark,
                   fontSize: 15.5,
@@ -834,7 +864,7 @@ class _ReportScreenState extends State<ReportScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '${report.actualPercent.toStringAsFixed(2)}% / ${report.ratio.toStringAsFixed(2)}%',
+                  '${report.actualPercent.toStringAsFixed(2)}% / ${report.targetPercent.toStringAsFixed(2)}%',
                   style: const TextStyle(
                     color: AppColors.primaryBlue,
                     fontSize: 13,
@@ -850,7 +880,9 @@ class _ReportScreenState extends State<ReportScreen> {
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
-                value: report.progress,
+                value: report.targetAmount > 0
+                    ? (report.actualAmount / report.targetAmount).clamp(0.0, 1.0)
+                    : (report.actualAmount > 0 ? 1.0 : 0.0),
                 minHeight: 6,
                 backgroundColor: AppColors.borderGray,
                 valueColor: const AlwaysStoppedAnimation<Color>(

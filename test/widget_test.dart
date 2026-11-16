@@ -331,10 +331,33 @@ void main() {
 
       expect(jarNeed.jarType, 'NEED');
       expect(jarNeed.ratio, 50);
+      expect(jarNeed.targetPercent, 50.0);
       expect(jarNeed.targetAmount, 7500000.0);
       expect(jarNeed.actualAmount, 3750000.0);
       expect(jarNeed.actualPercent, 25.0);
       expect(jarNeed.progress, 0.5);
+
+      final jarZeroTarget = JarReport(
+        jarType: 'WANT',
+        ratio: 30,
+        targetPercent: 0.0,
+        targetAmount: 0,
+        actualAmount: 500000,
+        actualPercent: 10.0,
+        expenses: const [],
+      );
+      expect(jarZeroTarget.progress, 1.0);
+
+      final jarZeroBoth = JarReport(
+        jarType: 'SAVE',
+        ratio: 20,
+        targetPercent: 0.0,
+        targetAmount: 0,
+        actualAmount: 0,
+        actualPercent: 0.0,
+        expenses: const [],
+      );
+      expect(jarZeroBoth.progress, 0.0);
 
       final report = MonthlyReportData(
         month: 10,
