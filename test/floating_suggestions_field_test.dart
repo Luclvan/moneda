@@ -326,5 +326,70 @@ void main() {
       final catField = tester.widget<TextField>(textFields.at(0));
       expect(catField.controller?.text, 'Ăn uống');
     });
+
+    test('CapitalizeFirstLetterFormatter capitalizes the first letter and preserves selection and composing', () {
+      final formatter = CapitalizeFirstLetterFormatter();
+
+      // Case 1: Empty text
+      final emptyResult = formatter.formatEditUpdate(
+        TextEditingValue.empty,
+        TextEditingValue.empty,
+      );
+      expect(emptyResult.text, '');
+
+      // Case 2: Lowercase single character
+      final singleChar = formatter.formatEditUpdate(
+        TextEditingValue.empty,
+        const TextEditingValue(
+          text: 'c',
+          selection: TextSelection.collapsed(offset: 1),
+        ),
+      );
+      expect(singleChar.text, 'C');
+      expect(singleChar.selection.baseOffset, 1);
+
+      // Case 3: Already capitalized
+      final upperResult = formatter.formatEditUpdate(
+        const TextEditingValue(text: 'C'),
+        const TextEditingValue(
+          text: 'Co',
+          selection: TextSelection.collapsed(offset: 2),
+        ),
+      );
+      expect(upperResult.text, 'Co');
+
+      // Case 4: Full sentence
+      final sentenceResult = formatter.formatEditUpdate(
+        TextEditingValue.empty,
+        const TextEditingValue(
+          text: 'cơm trưa văn phòng',
+          selection: TextSelection.collapsed(offset: 18),
+        ),
+      );
+      expect(sentenceResult.text, 'Cơm trưa văn phòng');
+    });
+
+    testWidgets('FloatingSuggestionsField has textCapitalization.sentences and auto-capitalizes input',
+        (WidgetTester tester) async {
+      final controller = TextEditingController();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FloatingSuggestionsField(
+              controller: controller,
+              suggestions: const ['Cơm trưa'],
+            ),
+          ),
+        ),
+      );
+
+      final textField = tester.widget<TextField>(find.byType(TextField));
+      expect(textField.textCapitalization, TextCapitalization.sentences);
+      expect(textField.inputFormatters?.any((f) => f is CapitalizeFirstLetterFormatter), true);
+
+      await tester.enterText(find.byType(TextField), 'cà phê sáng');
+      await tester.pump();
+      expect(controller.text, 'Cà phê sáng');
+    });
   });
 }

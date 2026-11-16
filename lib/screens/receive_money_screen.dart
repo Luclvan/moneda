@@ -736,6 +736,8 @@ class _ReceiveMoneyScreenState extends State<ReceiveMoneyScreen> {
               hintText: 'Nhập hoặc chọn nguồn thu nhập',
               suggestions: _suggestions,
               itemIcon: Icons.history_rounded,
+              textCapitalization: TextCapitalization.sentences,
+              inputFormatters: [CapitalizeFirstLetterFormatter()],
               onChanged: (_) => setState(() {}),
               onSelected: (val) {
                 _onSourceSelected(val);
