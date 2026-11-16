@@ -706,6 +706,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
               hintText: 'Chọn hoặc nhập danh mục (VD: Ăn uống, Mua sắm...)',
               suggestions: _categorySuggestions,
               itemIcon: Icons.category_outlined,
+              textCapitalization: TextCapitalization.sentences,
+              inputFormatters: [CapitalizeFirstLetterFormatter()],
               onChanged: (cat) {
                 _onCategoryChanged(cat);
                 setState(() {});
@@ -828,6 +830,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
               hintText: 'VD: Cơm trưa, Nạp 4G Viettel, Xăng xe...',
               suggestions: _titleSuggestions,
               itemIcon: Icons.history_rounded,
+              textCapitalization: TextCapitalization.sentences,
+              inputFormatters: [CapitalizeFirstLetterFormatter()],
               onChanged: (_) => setState(() {}),
               onSelected: (_) => setState(() {}),
               onTap: () async {

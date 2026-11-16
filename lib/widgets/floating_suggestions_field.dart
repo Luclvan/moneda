@@ -1,6 +1,25 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../core/constants/app_colors.dart';
+
+/// Formatter tự động viết hoa ký tự đầu tiên mà không làm lỗi dấu tiếng Việt (Telex/VNI)
+class CapitalizeFirstLetterFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) return newValue;
+    final firstChar = newValue.text[0].toUpperCase();
+    if (firstChar == newValue.text[0]) return newValue;
+    return newValue.copyWith(
+      text: firstChar + newValue.text.substring(1),
+      selection: newValue.selection,
+      composing: newValue.composing,
+    );
+  }
+}
 
 /// Ô nhập văn bản hỗ trợ gợi ý dạng floating overlay dropdown.
 ///
@@ -21,6 +40,8 @@ class FloatingSuggestionsField extends StatefulWidget {
   final IconData? itemIcon;
   final double maxHeight;
   final TextInputAction? textInputAction;
+  final TextCapitalization textCapitalization;
+  final List<TextInputFormatter>? inputFormatters;
 
   const FloatingSuggestionsField({
     super.key,
@@ -34,6 +55,8 @@ class FloatingSuggestionsField extends StatefulWidget {
     this.itemIcon,
     this.maxHeight = 190.0,
     this.textInputAction,
+    this.textCapitalization = TextCapitalization.sentences,
+    this.inputFormatters,
   });
 
   @override
@@ -290,6 +313,9 @@ class _FloatingSuggestionsFieldState extends State<FloatingSuggestionsField> {
                   controller: widget.controller,
                   focusNode: _effectiveFocusNode,
                   textInputAction: widget.textInputAction,
+                  textCapitalization: widget.textCapitalization,
+                  inputFormatters: widget.inputFormatters ??
+                      [CapitalizeFirstLetterFormatter()],
                   style: const TextStyle(
                     color: AppColors.textDark,
                     fontSize: 15,
