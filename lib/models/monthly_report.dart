@@ -2,6 +2,7 @@
 class JarReport {
   final String jarType;
   final int ratio;
+  final double targetPercent;
   final double targetAmount;
   final double actualAmount;
   final double actualPercent;
@@ -10,16 +11,19 @@ class JarReport {
   JarReport({
     required this.jarType,
     required this.ratio,
+    double? targetPercent,
     required this.targetAmount,
     required this.actualAmount,
     required this.actualPercent,
     required this.expenses,
-  });
+  }) : targetPercent = targetPercent ?? ratio.toDouble();
 
   /// Tỷ lệ hoàn thành so với mục tiêu (0.0 đến 1.0+)
   double get progress {
-    if (targetAmount <= 0) return 0.0;
-    return (actualAmount / targetAmount).clamp(0.0, 1.0);
+    if (targetAmount > 0) {
+      return (actualAmount / targetAmount).clamp(0.0, 1.0);
+    }
+    return actualAmount > 0 ? 1.0 : 0.0;
   }
 }
 
@@ -44,6 +48,7 @@ class MonthlyReportData {
       JarReport(
         jarType: 'NEED',
         ratio: 50,
+        targetPercent: 0,
         targetAmount: 0,
         actualAmount: 0,
         actualPercent: 0,
@@ -55,6 +60,7 @@ class MonthlyReportData {
       JarReport(
         jarType: 'WANT',
         ratio: 30,
+        targetPercent: 0,
         targetAmount: 0,
         actualAmount: 0,
         actualPercent: 0,
@@ -66,10 +72,10 @@ class MonthlyReportData {
       JarReport(
         jarType: 'SAVE',
         ratio: 20,
+        targetPercent: 0,
         targetAmount: 0,
         actualAmount: 0,
         actualPercent: 0,
         expenses: const [],
       );
 }
-

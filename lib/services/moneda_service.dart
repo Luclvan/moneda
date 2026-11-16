@@ -1403,13 +1403,41 @@ class MonedaService {
   Future<MonthlyReportData> getMonthlyReport({
     required int month,
     required int year,
+    bool forceRefresh = false,
   }) async {
     final monthKey = DateFormat('yyyy-MM').format(DateTime(year, month, 1));
-    if (hasMonthlyReportCache(monthKey) && cachedSettings != null) {
+    if (!forceRefresh && hasMonthlyReportCache(monthKey) && cachedSettings != null) {
       final cache = cachedMonthlyReports[monthKey]!;
       final settings = AppSettings.fromJson(cachedSettings!);
       final monthlyIncome = (cache['monthly_income'] as num?)?.toDouble() ?? 0.0;
       final allExpenses = List<Map<String, dynamic>>.from(cache['all_expenses'] as List? ?? []);
+
+      final needTarget = (cache['need_target'] as num?)?.toDouble() ??
+          (monthlyIncome > 0 ? monthlyIncome * (settings.needRatio / 100.0) : 0.0);
+      final wantTarget = (cache['want_target'] as num?)?.toDouble() ??
+          (monthlyIncome > 0 ? monthlyIncome * (settings.wantRatio / 100.0) : 0.0);
+      final saveTarget = (cache['save_target'] as num?)?.toDouble() ??
+          (monthlyIncome > 0 ? monthlyIncome * (settings.saveRatio / 100.0) : 0.0);
+
+      final needTargetPercent = (cache['need_target_percent'] as num?)?.toDouble() ??
+          (monthlyIncome > 0 ? (needTarget / monthlyIncome) * 100.0 : 0.0);
+      final wantTargetPercent = (cache['want_target_percent'] as num?)?.toDouble() ??
+          (monthlyIncome > 0 ? (wantTarget / monthlyIncome) * 100.0 : 0.0);
+      final saveTargetPercent = (cache['save_target_percent'] as num?)?.toDouble() ??
+          (monthlyIncome > 0 ? (saveTarget / monthlyIncome) * 100.0 : 0.0);
+
+      final targetAmounts = {
+        'NEED': needTarget,
+        'WANT': wantTarget,
+        'SAVE': saveTarget,
+      };
+
+      final targetPercents = {
+        'NEED': needTargetPercent,
+        'WANT': wantTargetPercent,
+        'SAVE': saveTargetPercent,
+      };
+
       final jarRatios = {
         'NEED': settings.needRatio,
         'WANT': settings.wantRatio,
@@ -1418,6 +1446,9 @@ class MonedaService {
       final Map<String, JarReport> jarsMap = {};
       for (final jarType in ['NEED', 'WANT', 'SAVE']) {
         final ratio = jarRatios[jarType] ?? 0;
+        final targetAmount = targetAmounts[jarType] ?? 0.0;
+        final targetPercent = targetPercents[jarType] ?? 0.0;
+
         final jarExpenses = allExpenses
             .where((e) =>
                 (e['jar_type'] as String? ?? '').toUpperCase() == jarType)
@@ -1426,13 +1457,12 @@ class MonedaService {
           0.0,
           (sum, e) => sum + ((e['amount'] as num?)?.toDouble() ?? 0.0),
         );
-        final targetAmount =
-            monthlyIncome > 0 ? monthlyIncome * (ratio / 100.0) : 0.0;
         final actualPercent =
             monthlyIncome > 0 ? (actualAmount / monthlyIncome) * 100.0 : 0.0;
         jarsMap[jarType] = JarReport(
           jarType: jarType,
           ratio: ratio,
+          targetPercent: targetPercent,
           targetAmount: targetAmount,
           actualAmount: actualAmount,
           actualPercent: actualPercent,
@@ -1480,9 +1510,49 @@ class MonedaService {
       final settings = results[2] as AppSettings;
 
       double monthlyIncome = 0.0;
+      double needTarget = 0.0;
+      double wantTarget = 0.0;
+      double saveTarget = 0.0;
+
       for (final inc in incomeRows) {
-        monthlyIncome += (inc['amount'] as num?)?.toDouble() ?? 0.0;
+        final amount = (inc['amount'] as num?)?.toDouble() ?? 0.0;
+        monthlyIncome += amount;
+
+        var allocNeed = (inc['allocated_need'] as num?)?.toDouble() ?? 0.0;
+        var allocWant = (inc['allocated_want'] as num?)?.toDouble() ?? 0.0;
+        var allocSave = (inc['allocated_save'] as num?)?.toDouble() ?? 0.0;
+
+        // Fallback an toàn: Nếu một bản ghi cũ trong DB có cả 3 cột allocated_* đều bằng 0 dù amount > 0,
+        // mới tính theo amount * ratio / 100
+        if (amount > 0 && allocNeed == 0.0 && allocWant == 0.0 && allocSave == 0.0) {
+          allocNeed = amount * (settings.needRatio / 100.0);
+          allocWant = amount * (settings.wantRatio / 100.0);
+          allocSave = amount * (settings.saveRatio / 100.0);
+        }
+
+        needTarget += allocNeed;
+        wantTarget += allocWant;
+        saveTarget += allocSave;
       }
+
+      final needTargetPercent =
+          monthlyIncome > 0 ? (needTarget / monthlyIncome) * 100.0 : 0.0;
+      final wantTargetPercent =
+          monthlyIncome > 0 ? (wantTarget / monthlyIncome) * 100.0 : 0.0;
+      final saveTargetPercent =
+          monthlyIncome > 0 ? (saveTarget / monthlyIncome) * 100.0 : 0.0;
+
+      final targetAmounts = {
+        'NEED': needTarget,
+        'WANT': wantTarget,
+        'SAVE': saveTarget,
+      };
+
+      final targetPercents = {
+        'NEED': needTargetPercent,
+        'WANT': wantTargetPercent,
+        'SAVE': saveTargetPercent,
+      };
 
       final allExpenses = List<Map<String, dynamic>>.from(expenseRows);
 
@@ -1496,6 +1566,9 @@ class MonedaService {
 
       for (final jarType in ['NEED', 'WANT', 'SAVE']) {
         final ratio = jarRatios[jarType] ?? 0;
+        final targetAmount = targetAmounts[jarType] ?? 0.0;
+        final targetPercent = targetPercents[jarType] ?? 0.0;
+
         final jarExpenses = allExpenses
             .where((e) =>
                 (e['jar_type'] as String? ?? '').toUpperCase() == jarType)
@@ -1506,15 +1579,13 @@ class MonedaService {
           (sum, e) => sum + ((e['amount'] as num?)?.toDouble() ?? 0.0),
         );
 
-        final targetAmount =
-            monthlyIncome > 0 ? monthlyIncome * (ratio / 100.0) : 0.0;
-
         final actualPercent =
             monthlyIncome > 0 ? (actualAmount / monthlyIncome) * 100.0 : 0.0;
 
         jarsMap[jarType] = JarReport(
           jarType: jarType,
           ratio: ratio,
+          targetPercent: targetPercent,
           targetAmount: targetAmount,
           actualAmount: actualAmount,
           actualPercent: actualPercent,
@@ -1528,6 +1599,12 @@ class MonedaService {
         'year': year,
         'monthly_income': monthlyIncome,
         'all_expenses': allExpenses,
+        'need_target': needTarget,
+        'want_target': wantTarget,
+        'save_target': saveTarget,
+        'need_target_percent': needTargetPercent,
+        'want_target_percent': wantTargetPercent,
+        'save_target_percent': saveTargetPercent,
       };
 
       return MonthlyReportData(
@@ -1550,6 +1627,7 @@ class MonedaService {
         'NEED': JarReport(
           jarType: 'NEED',
           ratio: defaultSettings.needRatio,
+          targetPercent: 0.0,
           targetAmount: 0,
           actualAmount: 0,
           actualPercent: 0,
@@ -1558,6 +1636,7 @@ class MonedaService {
         'WANT': JarReport(
           jarType: 'WANT',
           ratio: defaultSettings.wantRatio,
+          targetPercent: 0.0,
           targetAmount: 0,
           actualAmount: 0,
           actualPercent: 0,
@@ -1566,6 +1645,7 @@ class MonedaService {
         'SAVE': JarReport(
           jarType: 'SAVE',
           ratio: defaultSettings.saveRatio,
+          targetPercent: 0.0,
           targetAmount: 0,
           actualAmount: 0,
           actualPercent: 0,
